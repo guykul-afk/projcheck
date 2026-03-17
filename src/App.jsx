@@ -42,48 +42,75 @@ const INITIAL_INVENTORY = Array.from({ length: 12 }, (_, i) => ({
   price: i < 6 ? (3500000 + (i * 100000)) : 0
 }));
 
+const createDefaultProject = (id = 'p1', name = 'פרויקט חדש') => ({
+  id,
+  name,
+  address: '',
+  marketSqmPrice: 0,
+  budgetData: INITIAL_BUDGET,
+  inventoryData: INITIAL_INVENTORY,
+  equityPercent: 30,
+  constructionMonths: 24,
+  p2080Percent: 50,
+  financingPercent: 7,
+  salesData: [],
+});
+
 const App = () => {
-  console.log('App component rendering...');
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem('activeTab') || 'budget');
   const [runtimeError, setRuntimeError] = useState(null);
   
-  // Cash Flow Settings
-  const [equityPercent, setEquityPercent] = useState(() => Number(localStorage.getItem('equityPercent')) || 30);
-  const [constructionMonths, setConstructionMonths] = useState(() => Number(localStorage.getItem('constructionMonths')) || 24);
-  const [salesData, setSalesData] = useState(() => JSON.parse(localStorage.getItem('salesData')) || []);
-  const [p2080Percent, setP2080Percent] = useState(() => Number(localStorage.getItem('p2080Percent')) || 50);
-
-  const [budgetData, setBudgetData] = useState(() => JSON.parse(localStorage.getItem('budgetData')) || INITIAL_BUDGET);
-  const [inventoryData, setInventoryData] = useState(() => JSON.parse(localStorage.getItem('inventoryData')) || INITIAL_INVENTORY);
+  // Projects State
+  const [projects, setProjects] = useState(() => {
+    const saved = localStorage.getItem('projcheck_projects');
+    return saved ? JSON.parse(saved) : [createDefaultProject('p1', 'פרויקט ראשון')];
+  });
   
-  // Market Analysis State
-  const [projectAddress, setProjectAddress] = useState(() => localStorage.getItem('projectAddress') || '');
-  const [marketSqmPrice, setMarketSqmPrice] = useState(() => Number(localStorage.getItem('marketSqmPrice')) || 0);
+  const [activeProjectId, setActiveProjectId] = useState(() => 
+    localStorage.getItem('projcheck_active_id') || (projects[0]?.id || 'p1')
+  );
+
+  const activeProject = useMemo(() => 
+    projects.find(p => p.id === activeProjectId) || projects[0],
+    [projects, activeProjectId]
+  );
+
+  // Derived Project State (for convenience)
+  const budgetData = activeProject.budgetData;
+  const inventoryData = activeProject.inventoryData;
+  const equityPercent = activeProject.equityPercent;
+  const constructionMonths = activeProject.constructionMonths;
+  const salesData = activeProject.salesData;
+  const p2080Percent = activeProject.p2080Percent;
+  const projectAddress = activeProject.address;
+  const marketSqmPrice = activeProject.marketSqmPrice;
+  const financingPercent = activeProject.financingPercent || 7;
+
+  // Market Analysis State (Ephemeral)
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
 
   // Save to LocalStorage
   useEffect(() => {
     localStorage.setItem('activeTab', activeTab);
-    localStorage.setItem('equityPercent', equityPercent);
-    localStorage.setItem('constructionMonths', constructionMonths);
-    localStorage.setItem('p2080Percent', p2080Percent);
-    localStorage.setItem('salesData', JSON.stringify(salesData));
-    localStorage.setItem('budgetData', JSON.stringify(budgetData));
-    localStorage.setItem('inventoryData', JSON.stringify(inventoryData));
-    localStorage.setItem('projectAddress', projectAddress);
-    localStorage.setItem('marketSqmPrice', marketSqmPrice);
-  }, [activeTab, equityPercent, constructionMonths, p2080Percent, salesData, budgetData, inventoryData, projectAddress, marketSqmPrice]);
+    localStorage.setItem('projcheck_projects', JSON.stringify(projects));
+    localStorage.setItem('projcheck_active_id', activeProjectId);
+  }, [activeTab, projects, activeProjectId]);
+
+  const updateProject = (updates) => {
+    setProjects(prev => prev.map(p => 
+      p.id === activeProjectId ? { ...p, ...updates } : p
+    ));
+  };
 
   // Initialize/Sync salesData when months change
   useEffect(() => {
     const intervals = Math.ceil(constructionMonths / 2);
-    setSalesData(prev => {
-      if (prev.length === intervals) return prev;
-      const newData = Array(intervals).fill(0);
-      prev.forEach((val, i) => { if(i < intervals) newData[i] = val; });
-      return newData;
-    });
+    if (salesData.length === intervals) return;
+    
+    const newData = Array(intervals).fill(0);
+    salesData.forEach((val, i) => { if(i < intervals) newData[i] = val; });
+    updateProject({ salesData: newData });
   }, [constructionMonths]);
 
   useEffect(() => {
@@ -125,7 +152,7 @@ const App = () => {
     setTimeout(() => {
       // Deterministic "random" price based on address string length for demo
       const basePrice = 25000 + (projectAddress.length % 20) * 500;
-      setMarketSqmPrice(basePrice);
+      updateProject({ marketSqmPrice: basePrice });
       
       const avgProjectSqm = inventoryStats.avgPricePerSqm;
       const gap = ((avgProjectSqm - basePrice) / basePrice) * 100;
@@ -205,7 +232,7 @@ const App = () => {
     
     // Phase 3: Financing (מימון וערבויות) - % of final total (Algebraic solution: F = p * (Sum + F) => F = p*Sum / (1-p))
     const sumExclFinancing = sections.reduce((acc, s) => acc+s.total, 0);
-    const finPctValue = 0.07; // Default 7% or should be dynamic? User said "חישוב כאחוז מתוך סך העלות"
+    const finPctValue = financingPercent / 100;
     const financing = Math.round((sumExclFinancing * finPctValue) / (1 - finPctValue));
     
     sections.push({ name: 'מימון וערבויות', total: financing, color: '#6366f1' });
@@ -337,24 +364,43 @@ const App = () => {
   }, [budgetStats, budgetData, equityPercent, constructionMonths, salesData, p2080Percent, inventoryStats]);
 
   const handleBudgetChange = (sectionId, itemId, field, value) => {
-    setBudgetData(prev => prev.map(section => {
-      if (section.id === sectionId) {
-        return {
-          ...section,
-          items: section.items.map(item => {
-            if (item.id === itemId) {
-              return { ...item, [field]: value };
-            }
-            return item;
-          })
-        };
-      }
-      return section;
-    }));
+    updateProject({
+      budgetData: budgetData.map(section => {
+        if (section.id === sectionId) {
+          return {
+            ...section,
+            items: section.items.map(item => {
+              if (item.id === itemId) return { ...item, [field]: value };
+              return item;
+            })
+          };
+        }
+        return section;
+      })
+    });
   };
 
   const handleInventoryChange = (id, field, value) => {
-    setInventoryData(prev => prev.map(apt => apt.id === id ? { ...apt, [field]: value } : apt));
+    updateProject({
+      inventoryData: inventoryData.map(apt => apt.id === id ? { ...apt, [field]: value } : apt)
+    });
+  };
+
+  const addNewProject = () => {
+    const newId = `p${Date.now()}`;
+    const newProj = createDefaultProject(newId, `פרויקט ${projects.length + 1}`);
+    setProjects([...projects, newProj]);
+    setActiveProjectId(newId);
+  };
+
+  const deleteProject = (id, e) => {
+    e.stopPropagation();
+    if (projects.length === 1) return;
+    const newProjects = projects.filter(p => p.id !== id);
+    setProjects(newProjects);
+    if (activeProjectId === id) {
+      setActiveProjectId(newProjects[0].id);
+    }
   };
 
   // Simple SVG Pie Chart Component
@@ -413,6 +459,68 @@ const App = () => {
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>מערכת ניתוח התכנות פיננסית</span>
           </div>
         </div>
+        
+        {/* Project Selector Tabs */}
+        <div style={{ display: 'flex', background: '#f1f5f9', padding: '4px', borderRadius: '12px', gap: '4px' }}>
+          {projects.map(p => (
+            <div 
+              key={p.id}
+              onClick={() => setActiveProjectId(p.id)}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s',
+                background: p.id === activeProjectId ? 'white' : 'transparent',
+                boxShadow: p.id === activeProjectId ? '0 2px 8px rgba(0,0,0,0.05)' : 'none',
+                color: p.id === activeProjectId ? 'var(--primary)' : 'var(--text-muted)'
+              }}
+            >
+              <input 
+                value={p.name} 
+                onChange={(e) => {
+                  const newName = e.target.value;
+                  setProjects(prev => prev.map(proj => proj.id === p.id ? { ...proj, name: newName } : proj));
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'inherit',
+                  font: 'inherit',
+                  width: '80px',
+                  padding: 0,
+                  outline: 'none'
+                }}
+              />
+              {projects.length > 1 && (
+                <Trash 
+                  size={14} 
+                  onClick={(e) => deleteProject(p.id, e)}
+                  style={{ opacity: 0.5, cursor: 'pointer' }}
+                />
+              )}
+            </div>
+          ))}
+          <button 
+            onClick={addNewProject}
+            style={{
+              padding: '8px 12px',
+              borderRadius: '8px',
+              border: 'none',
+              background: 'none',
+              cursor: 'pointer',
+              color: 'var(--text-muted)'
+            }}
+          >
+            <Plus size={18} />
+          </button>
+        </div>
+
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           <button className="tab" style={{ background: 'white', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <FileText size={18} /> דוח מלא
@@ -517,7 +625,24 @@ const App = () => {
                       </React.Fragment>
                     ))}
                     <tr className="section-header"><td colSpan="4" style={{ padding: '0.75rem 1rem', fontSize: '1rem' }}>מימון</td></tr>
-                    <tr><td>מימון וערבויות (7%)</td><td>7%</td><td>-</td><td style={{ textAlign: 'left', fontWeight: 600 }}>{budgetStats.grandTotal - (budgetStats.grandTotal / 1.07)} ₪</td></tr>
+                    <tr>
+                      <td>מימון וערבויות ({financingPercent}%)</td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input 
+                            type="number" 
+                            step="0.5"
+                            value={financingPercent} 
+                            onChange={(e) => updateProject({ financingPercent: Number(e.target.value) })}
+                            className="input-field"
+                            style={{ width: '60px' }}
+                          />
+                          %
+                        </div>
+                      </td>
+                      <td>חישוב כאחוז מהעלות הכוללת</td>
+                      <td style={{ textAlign: 'left', fontWeight: 600 }}>{budgetStats.grandTotal - (budgetStats.grandTotal / (1 + (financingPercent/100)))} ₪</td>
+                    </tr>
                     <tr className="total-row" style={{ fontSize: '1.25rem', color: 'var(--primary)' }}>
                       <td colSpan="3" style={{ padding: '1.5rem 1rem' }}>סה"כ עלות הקמה ומימון</td>
                       <td style={{ textAlign: 'left', padding: '1.5rem 1rem' }}>{budgetStats.grandTotal.toLocaleString()} ₪</td>
