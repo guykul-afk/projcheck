@@ -1,23 +1,85 @@
-import React, { useState, useMemo, useEffect } from 'react';
-console.log('App.jsx loading...');
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  PieChart, FileText, Save, Calculator, Building, 
+  Activity, ChevronDown, Plus, Trash, Info, List, MapPin 
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Building, Calculator, Save, Download, PieChart, FileText, Plus, Trash, Info, List, BarChart, Activity, ChevronDown } from 'lucide-react';
+
+const INITIAL_BUDGET = [
+  { id: 1, section: 'קרקע + ייזום', color: '#3b82f6', items: [
+    { id: '1-1', name: 'מס רכישה', targets: '6%', quantity: 70200000, total: 4212000, type: 'percent' },
+    { id: '1-2', name: 'היטל השבחה', targets: 'אומדן', quantity: 0, total: 2000000, type: 'lump' },
+    { id: '1-3', name: 'דיור חלופי לבעלי הדירות', targets: 6000, quantity: 1008, total: 6048000, type: 'per_unit' },
+    { id: '1-4', name: 'הובלה', targets: 4000, quantity: 28, total: 224000, type: 'per_unit' },
+  ]},
+  { id: 2, section: "פרק ב' - כלליות", color: '#10b981', items: [
+    { id: '2-1', name: 'תכנון וייעוץ', targets: 30000, quantity: 82, total: 2460000, type: 'per_unit' },
+    { id: '2-2', name: 'פיקוח מטעם הדיירים', targets: 10000, quantity: 40, total: 400000, type: 'per_unit' },
+    { id: '2-3', name: 'שיווק', targets: '2.00%', quantity: 168480000, total: 3369600, type: 'percent' },
+    { id: '2-4', name: 'אגרות והיטלים לשטח עילי', targets: 464, quantity: 10560, total: 4899840, type: 'per_sqm' },
+    { id: '2-5', name: 'אגרות והיטלים לשטח תת קרקעי', targets: 336, quantity: 4400, total: 1478400, type: 'per_sqm' },
+    { id: '2-6', name: 'חב\' חשמל - מגורים', targets: 3750, quantity: 82, total: 307500, type: 'per_unit' },
+    { id: '2-7', name: 'תקורה, ניהול ופיקוח', targets: '4.00%', quantity: 84393200, total: 3375728, type: 'percent' },
+    { id: '2-8', name: 'פרסום שיווק', targets: '2.00%', quantity: 144000000, total: 2880000, type: 'percent' },
+    { id: '2-9', name: 'בלתי צפוי מראש', targets: '5.00%', quantity: 0, total: 0, type: 'percent' },
+  ]},
+  { id: 3, section: "פרק ג' - בנייה ישירה", color: '#f59e0b', items: [
+    { id: '3-1', name: 'הריסה ופינוי', targets: 460, quantity: 3500, total: 1610000, type: 'per_sqm' },
+    { id: '3-2', name: 'פיתוח חצר', targets: 500, quantity: 2000, total: 1000000, type: 'per_sqm' },
+    { id: '3-3', name: 'מרתפים', targets: 3478, quantity: 4400, total: 15303200, type: 'per_sqm' },
+    { id: '3-4', name: 'שטח עילי -מרקמי עד 10 קומות', targets: 6000, quantity: 10560, total: 63360000, type: 'per_sqm' },
+    { id: '3-5', name: 'מרפסות', targets: 2500, quantity: 1008, total: 2520000, type: 'per_sqm' },
+    { id: '3-6', name: 'מרפסות גג', targets: 1500, quantity: 400, total: 600000, type: 'per_sqm' },
+  ]}
+];
+
+const INITIAL_INVENTORY = Array.from({ length: 12 }, (_, i) => ({
+  id: i + 1,
+  floor: Math.floor(i / 2) + 1,
+  type: i < 6 ? 'יזם' : 'בעלים',
+  rooms: (i % 3) + 3,
+  area: 95 + (i * 5),
+  price: i < 6 ? (3500000 + (i * 100000)) : 0
+}));
 
 const App = () => {
   console.log('App component rendering...');
-  const [activeTab, setActiveTab] = useState('budget');
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('activeTab') || 'budget');
   const [runtimeError, setRuntimeError] = useState(null);
   
   // Cash Flow Settings
-  const [equityPercent, setEquityPercent] = useState(30);
-  const [constructionMonths, setConstructionMonths] = useState(24);
-  const [salesData, setSalesData] = useState([]); // Array of units sold per bi-month
-  const [p2080Percent, setP2080Percent] = useState(50); // % of sales that are 20/80
+  const [equityPercent, setEquityPercent] = useState(() => Number(localStorage.getItem('equityPercent')) || 30);
+  const [constructionMonths, setConstructionMonths] = useState(() => Number(localStorage.getItem('constructionMonths')) || 24);
+  const [salesData, setSalesData] = useState(() => JSON.parse(localStorage.getItem('salesData')) || []);
+  const [p2080Percent, setP2080Percent] = useState(() => Number(localStorage.getItem('p2080Percent')) || 50);
+
+  const [budgetData, setBudgetData] = useState(() => JSON.parse(localStorage.getItem('budgetData')) || INITIAL_BUDGET);
+  const [inventoryData, setInventoryData] = useState(() => JSON.parse(localStorage.getItem('inventoryData')) || INITIAL_INVENTORY);
+  
+  // Market Analysis State
+  const [projectAddress, setProjectAddress] = useState(() => localStorage.getItem('projectAddress') || '');
+  const [marketSqmPrice, setMarketSqmPrice] = useState(() => Number(localStorage.getItem('marketSqmPrice')) || 0);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState(null);
+
+  // Save to LocalStorage
+  useEffect(() => {
+    localStorage.setItem('activeTab', activeTab);
+    localStorage.setItem('equityPercent', equityPercent);
+    localStorage.setItem('constructionMonths', constructionMonths);
+    localStorage.setItem('p2080Percent', p2080Percent);
+    localStorage.setItem('salesData', JSON.stringify(salesData));
+    localStorage.setItem('budgetData', JSON.stringify(budgetData));
+    localStorage.setItem('inventoryData', JSON.stringify(inventoryData));
+    localStorage.setItem('projectAddress', projectAddress);
+    localStorage.setItem('marketSqmPrice', marketSqmPrice);
+  }, [activeTab, equityPercent, constructionMonths, p2080Percent, salesData, budgetData, inventoryData, projectAddress, marketSqmPrice]);
 
   // Initialize/Sync salesData when months change
   useEffect(() => {
     const intervals = Math.ceil(constructionMonths / 2);
     setSalesData(prev => {
+      if (prev.length === intervals) return prev;
       const newData = Array(intervals).fill(0);
       prev.forEach((val, i) => { if(i < intervals) newData[i] = val; });
       return newData;
@@ -32,72 +94,11 @@ const App = () => {
     };
   }, []);
 
-  // Construction Budget Data
-  const [budgetData, setBudgetData] = useState([
-    { id: 1, section: 'קרקע + ייזום', color: '#3b82f6', items: [
-      { id: '1-1', name: 'מס רכישה', targets: '6%', quantity: 70200000, total: 4212000, type: 'percent' },
-      { id: '1-2', name: 'היטל השבחה', targets: 'אומדן', quantity: 0, total: 2000000, type: 'lump' },
-      { id: '1-3', name: 'דיור חלופי לבעלי הדירות', targets: 6000, quantity: 1008, total: 6048000, type: 'per_unit' },
-      { id: '1-4', name: 'הובלה', targets: 4000, quantity: 28, total: 224000, type: 'per_unit' },
-    ]},
-    { id: 2, section: "פרק ב' - כלליות", color: '#10b981', items: [
-      { id: '2-1', name: 'תכנון וייעוץ', targets: 30000, quantity: 82, total: 2460000, type: 'per_unit' },
-      { id: '2-2', name: 'פיקוח מטעם הדיירים', targets: 10000, quantity: 40, total: 400000, type: 'per_unit' },
-      { id: '2-3', name: 'עמ"מ ניהול (מכירות)', targets: '2.00%', quantity: 168480000, total: 3369600, type: 'percent' },
-      { id: '2-4', name: 'אגרות והיטלים לשטח עילי', targets: 464, quantity: 10560, total: 4899840, type: 'per_sqm' },
-      { id: '2-5', name: 'אגרות והיטלים לשטח תת קרקעי', targets: 336, quantity: 4400, total: 1478400, type: 'per_sqm' },
-      { id: '2-6', name: 'חב\' חשמל - מגורים', targets: 3750, quantity: 82, total: 307500, type: 'per_unit' },
-      { id: '2-7', name: 'תקורה, ניהול ופיקוח', targets: '4.00%', quantity: 84393200, total: 3375728, type: 'percent' },
-      { id: '2-8', name: 'פרסום שיווק', targets: '2.00%', quantity: 144000000, total: 2880000, type: 'percent' },
-      { id: '2-9', name: 'בלתי צפוי מראש', targets: '5.00%', quantity: 84393200, total: 4219660, type: 'percent' },
-    ]},
-    { id: 3, section: "פרק ג' - בנייה ישירה", color: '#f59e0b', items: [
-      { id: '3-1', name: 'הריסה ופינוי', targets: 460, quantity: 3500, total: 1610000, type: 'per_sqm' },
-      { id: '3-2', name: 'פיתוח חצר', targets: 500, quantity: 2000, total: 1000000, type: 'per_sqm' },
-      { id: '3-3', name: 'מרתפים', targets: 3478, quantity: 4400, total: 15303200, type: 'per_sqm' },
-      { id: '3-4', name: 'שטח עילי -מרקמי עד 10 קומות', targets: 6000, quantity: 10560, total: 63360000, type: 'per_sqm' },
-      { id: '3-5', name: 'מרפסות', targets: 2500, quantity: 1008, total: 2520000, type: 'per_sqm' },
-      { id: '3-6', name: 'מרפסות גג', targets: 1500, quantity: 400, total: 600000, type: 'per_sqm' },
-    ]}
-  ]);
-
-  const [inventoryData, setInventoryData] = useState(
-    Array.from({ length: 12 }, (_, i) => ({
-      id: i + 1,
-      floor: Math.floor(i / 2) + 1,
-      type: i < 6 ? 'יזם' : 'בעלים',
-      rooms: (i % 3) + 3,
-      area: 95 + (i * 5),
-      price: i < 6 ? (3500000 + (i * 100000)) : 0
-    }))
-  );
-
-  // Budget Calculations & Sorting
-  const budgetStats = useMemo(() => {
-    const sections = budgetData.map(sec => ({
-      name: sec.section,
-      total: sec.items.reduce((acc, item) => acc + item.total, 0),
-      color: sec.color
-    }));
-    
-    const subtotal = sections.reduce((acc, s) => acc + s.total, 0);
-    const financing = Math.round(subtotal * 0.07);
-    sections.push({ name: 'מימון וערבויות', total: financing, color: '#6366f1' });
-    
-    const grandTotal = subtotal + financing;
-    
-    // All items sorted by total
-    const allItems = budgetData.flatMap(sec => sec.items.map(item => ({ ...item, section: sec.section })));
-    allItems.push({ id: 'fin', name: 'מימון וערבויות', total: financing, section: 'מימון' });
-    const sortedItems = [...allItems].sort((a, b) => b.total - a.total);
-
-    return { sections, grandTotal, sortedItems };
-  }, [budgetData]);
-
-  // Inventory Stats
+  // Inventory Stats (needed before budgetStats for marketing formula)
   const inventoryStats = useMemo(() => {
     const totalUnits = inventoryData.length;
     const devUnits = inventoryData.filter(a => a.type === 'יזם').length;
+    const ownerUnits = inventoryData.filter(a => a.type === 'בעלים').length; // Added
     const totalArea = inventoryData.reduce((acc, a) => acc + a.area, 0);
     const devArea = inventoryData.filter(a => a.type === 'יזם').reduce((acc, a) => acc + a.area, 0);
     const devValueInclVat = inventoryData.filter(a => a.type === 'יזם').reduce((acc, a) => acc + a.price, 0);
@@ -105,14 +106,118 @@ const App = () => {
     const totalValue = devValueInclVat + ownerValueInclVat;
 
     return {
-      totalUnits, devUnits, devUnitsPct: (devUnits/totalUnits*100).toFixed(1),
+      totalUnits, devUnits, ownerUnits, devUnitsPct: (devUnits/totalUnits*100).toFixed(1),
       totalArea, devArea, devAreaPct: (devArea/totalArea*100).toFixed(1),
       devValueInclVat, devValueExclVat: devValueInclVat / 1.18,
       devValuePct: totalValue > 0 ? (devValueInclVat/totalValue*100).toFixed(1) : 0,
       ownerValueInclVat,
-      totalProjectValue: totalValue
+      totalProjectValue: totalValue,
+      avgPricePerSqm: devArea > 0 ? (devValueInclVat / devArea) : 0
     };
   }, [inventoryData]);
+
+  // Market Analysis Logic
+  const runMarketAnalysis = () => {
+    if (!projectAddress) return;
+    setIsAnalyzing(true);
+    
+    // Simulate API call to Nadlan/Madlan
+    setTimeout(() => {
+      // Deterministic "random" price based on address string length for demo
+      const basePrice = 25000 + (projectAddress.length % 20) * 500;
+      setMarketSqmPrice(basePrice);
+      
+      const avgProjectSqm = inventoryStats.avgPricePerSqm;
+      const gap = ((avgProjectSqm - basePrice) / basePrice) * 100;
+      
+      let speed = "בינוני";
+      if (gap < -5) speed = "מהיר מאוד";
+      else if (gap < 0) speed = "מהיר";
+      else if (gap > 10) speed = "איטי מאוד";
+      else if (gap > 5) speed = "איטי";
+      
+      setAnalysisResult({
+        speed,
+        gap: gap.toFixed(1),
+        comparables: [
+          { date: '01/2024', price: basePrice * 0.98, dist: '150m' },
+          { date: '11/2023', price: basePrice * 1.02, dist: '300m' },
+          { date: '08/2023', price: basePrice * 0.95, dist: '450m' }
+        ]
+      });
+      setIsAnalyzing(false);
+    }, 1500);
+  };
+
+  // Budget Calculations & Sorting
+  const budgetStats = useMemo(() => {
+    // Phase 1: Calculate basic totals and specific formulas
+    const processedSections = budgetData.map(sec => {
+      const items = sec.items.map(item => {
+        let total = item.total;
+        
+        // Betterment Levy (היטל השבחה)
+        if (item.id === '1-2') {
+          total = Number(item.quantity) || 0;
+        }
+        // Alternative Housing (דיור חלופי)
+        else if (item.id === '1-3') {
+          total = (Number(item.targets) || 0) * inventoryStats.ownerUnits * (constructionMonths + 3);
+        }
+        // Moving (הובלה)
+        else if (item.id === '1-4') {
+          total = inventoryStats.ownerUnits * 2 * (Number(item.targets) || 0);
+        }
+        // Marketing (שיווק)
+        else if (item.id === '2-3') {
+          const pct = parseFloat(item.targets) / 100 || 0;
+          total = pct * inventoryStats.devValueInclVat;
+        }
+        
+        return { ...item, total };
+      });
+      return { ...sec, items };
+    });
+
+    // Phase 2: Unforeseen (בלתי צפוי מראש) - based on Sect 2 & 3
+    const subtotalBasic = processedSections.reduce((acc, s) => acc + s.items.reduce((sum, i) => i.id !== '2-9' ? sum + i.total : sum, 0), 0);
+    const directAndGeneralTotal = processedSections.filter(s => s.id === 2 || s.id === 3).reduce((acc, s) => acc + s.items.reduce((sum, i) => i.id !== '2-9' ? sum + i.total : sum, 0), 0);
+    
+    const finalSections = processedSections.map(sec => {
+      if (sec.id === 2) {
+        const items = sec.items.map(item => {
+          if (item.id === '2-9') {
+            const pct = parseFloat(item.targets) / 100 || 0;
+            return { ...item, total: pct * directAndGeneralTotal };
+          }
+          return item;
+        });
+        return { ...sec, items };
+      }
+      return sec;
+    });
+
+    const sections = finalSections.map(sec => ({
+      name: sec.section,
+      total: sec.items.reduce((acc, item) => acc + item.total, 0),
+      color: sec.color
+    }));
+    
+    // Phase 3: Financing (מימון וערבויות) - % of final total (Algebraic solution: F = p * (Sum + F) => F = p*Sum / (1-p))
+    const sumExclFinancing = sections.reduce((acc, s) => acc+s.total, 0);
+    const finPctValue = 0.07; // Default 7% or should be dynamic? User said "חישוב כאחוז מתוך סך העלות"
+    const financing = Math.round((sumExclFinancing * finPctValue) / (1 - finPctValue));
+    
+    sections.push({ name: 'מימון וערבויות', total: financing, color: '#6366f1' });
+    const grandTotal = sumExclFinancing + financing;
+    
+    // All items for sorting
+    const allItems = finalSections.flatMap(sec => sec.items.map(item => ({ ...item, section: sec.section })));
+    allItems.push({ id: 'fin', name: 'מימון וערבויות', total: financing, section: 'מימון' });
+    const sortedItems = [...allItems].sort((a, b) => b.total - a.total);
+
+    return { sections, grandTotal, sortedItems, finalSections };
+  }, [budgetData, inventoryStats, constructionMonths]);
 
   // Cash Flow Calculations
   const cashFlowStats = useMemo(() => {
@@ -238,11 +343,7 @@ const App = () => {
           ...section,
           items: section.items.map(item => {
             if (item.id === itemId) {
-              const updatedItem = { ...item, [field]: value };
-              if (typeof updatedItem.targets === 'number' && typeof updatedItem.quantity === 'number') {
-                if (updatedItem.type !== 'percent') updatedItem.total = updatedItem.targets * updatedItem.quantity;
-              }
-              return updatedItem;
+              return { ...item, [field]: value };
             }
             return item;
           })
@@ -396,7 +497,7 @@ const App = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {budgetData.map((section) => (
+                    {budgetStats.finalSections.map((section) => (
                       <React.Fragment key={section.id}>
                         <tr className="section-header">
                           <td colSpan="4" style={{ padding: '0.75rem 1rem', fontSize: '1rem' }}>{section.section}</td>
@@ -770,6 +871,35 @@ const App = () => {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              {/* Address Entry Section */}
+              <div style={{ 
+                background: 'white', padding: '1.5rem', borderRadius: '12px', border: '1px solid var(--border-color)', 
+                display: 'flex', gap: '1rem', alignItems: 'flex-end', boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+              }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', fontWeight: 600 }}>כתובת הפרויקט (לבדיקת מחירי שוק):</label>
+                  <div style={{ position: 'relative' }}>
+                    <input 
+                      type="text" 
+                      placeholder="לדוגמה: הרצל 15, תל אביב" 
+                      value={projectAddress} 
+                      onChange={(e) => setProjectAddress(e.target.value)}
+                      className="input-field"
+                      style={{ paddingRight: '35px' }}
+                    />
+                    <MapPin size={18} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  </div>
+                </div>
+                <button 
+                  onClick={runMarketAnalysis} 
+                  disabled={isAnalyzing || !projectAddress}
+                  className="tab active" 
+                  style={{ height: '42px', padding: '0 2rem', opacity: (!projectAddress || isAnalyzing) ? 0.5 : 1 }}
+                >
+                  {isAnalyzing ? 'בודק...' : 'בצע ניתוח שוק'}
+                </button>
+              </div>
+
               {/* Inventory Summary Dashboard */}
               <div style={{ 
                 display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem',
@@ -802,6 +932,15 @@ const App = () => {
                   <div className="stat-value">{inventoryStats.ownerValueInclVat.toLocaleString()} ₪</div>
                   <div style={{ fontSize: '0.8rem', marginTop: '10px', color: 'var(--text-muted)' }}><Info size={12} style={{ verticalAlign: 'middle', marginRight: '4px' }} /> שווי אומדני כולל מע"מ</div>
                 </div>
+                {marketSqmPrice > 0 && (
+                  <div className="stat-card" style={{ borderRight: '3px solid #6366f1', background: '#f5f7ff' }}>
+                    <span className="stat-label">מחיר שוק למ"ר (אומדן)</span>
+                    <div className="stat-value" style={{ color: '#6366f1' }}>{Math.round(marketSqmPrice).toLocaleString()} ₪</div>
+                    <div style={{ fontSize: '0.8rem', marginTop: '5px' }}>
+                      פער מחיר: <span style={{ color: analysisResult?.gap > 0 ? '#ef4444' : '#10b981', fontWeight: 700 }}>{analysisResult?.gap}%</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Inventory Table */}
@@ -815,25 +954,98 @@ const App = () => {
                 <div style={{ overflowX: 'auto' }}>
                   <table>
                     <thead>
-                      <tr><th>מס'</th><th>קומה</th><th>סוג</th><th>חדרים</th><th>שטח (מ"ר)</th><th>מחיר כולל מע"מ (₪)</th><th>מחיר ללא מע"מ (₪)</th><th>פעולות</th></tr>
+                      <tr>
+                        <th>מס'</th>
+                        <th>קומה</th>
+                        <th>סוג</th>
+                        <th>חדרים</th>
+                        <th>שטח (מ"ר)</th>
+                        <th>מחיר (₪)</th>
+                        <th>מחיר למ"ר</th>
+                        {marketSqmPrice > 0 && <th>מחיר שוק</th>}
+                        {marketSqmPrice > 0 && <th>פער</th>}
+                        <th>פעולות</th>
+                      </tr>
                     </thead>
                     <tbody>
-                      {inventoryData.map((apt, idx) => (
-                        <tr key={apt.id}>
-                          <td>{idx + 1}</td>
-                          <td><input type="number" value={apt.floor} onChange={(e) => handleInventoryChange(apt.id, 'floor', Number(e.target.value))} className="input-field small" /></td>
-                          <td><select value={apt.type} onChange={(e) => handleInventoryChange(apt.id, 'type', e.target.value)} className="input-field select"><option value="יזם">יזם</option><option value="בעלים">בעלים</option></select></td>
-                          <td><input type="number" value={apt.rooms} onChange={(e) => handleInventoryChange(apt.id, 'rooms', Number(e.target.value))} className="input-field small" /></td>
-                          <td><input type="number" value={apt.area} onChange={(e) => handleInventoryChange(apt.id, 'area', Number(e.target.value))} className="input-field mid" /></td>
-                          <td><input type="number" value={apt.price} onChange={(e) => handleInventoryChange(apt.id, 'price', Number(e.target.value))} className="input-field mid" style={{ fontWeight: 600 }} /></td>
-                          <td style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{apt.price > 0 ? Math.round(apt.price / 1.18).toLocaleString() : '-'} ₪</td>
-                          <td><button onClick={() => setInventoryData(inventoryData.filter(a => a.id !== apt.id))} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}><Trash size={16} /></button></td>
-                        </tr>
-                      ))}
+                      {inventoryData.map((apt, idx) => {
+                        const projectSqmPrice = apt.area > 0 ? (apt.price / apt.area) : 0;
+                        const gap = marketSqmPrice > 0 ? ((projectSqmPrice - marketSqmPrice) / marketSqmPrice * 100) : 0;
+                        
+                        return (
+                          <tr key={apt.id}>
+                            <td>{idx + 1}</td>
+                            <td><input type="number" value={apt.floor} onChange={(e) => handleInventoryChange(apt.id, 'floor', Number(e.target.value))} className="input-field small" /></td>
+                            <td><select value={apt.type} onChange={(e) => handleInventoryChange(apt.id, 'type', e.target.value)} className="input-field select"><option value="יזם">יזם</option><option value="בעלים">בעלים</option></select></td>
+                            <td><input type="number" value={apt.rooms} onChange={(e) => handleInventoryChange(apt.id, 'rooms', Number(e.target.value))} className="input-field small" /></td>
+                            <td><input type="number" value={apt.area} onChange={(e) => handleInventoryChange(apt.id, 'area', Number(e.target.value))} className="input-field mid" /></td>
+                            <td><input type="number" value={apt.price} onChange={(e) => handleInventoryChange(apt.id, 'price', Number(e.target.value))} className="input-field mid" style={{ fontWeight: 600 }} title='מחיר כולל מע"מ' /></td>
+                            <td style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{Math.round(projectSqmPrice).toLocaleString()} ₪</td>
+                            {marketSqmPrice > 0 && (
+                              <td style={{ color: '#6366f1', fontWeight: 600 }}>{Math.round(marketSqmPrice).toLocaleString()} ₪</td>
+                            )}
+                            {marketSqmPrice > 0 && (
+                              <td style={{ 
+                                color: gap > 5 ? '#ef4444' : gap < -5 ? '#10b981' : '#f59e0b',
+                                fontWeight: 700
+                              }}>
+                                {gap > 0 ? '+' : ''}{gap.toFixed(1)}%
+                              </td>
+                            )}
+                            <td><button onClick={() => setInventoryData(inventoryData.filter(a => a.id !== apt.id))} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}><Trash size={16} /></button></td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               </div>
+
+              {analysisResult && (
+                <div style={{ 
+                  display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem',
+                  background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)', padding: '2rem', borderRadius: '12px', border: '1px solid #cbd5e1'
+                }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
+                      <Activity size={20} color="var(--primary)" />
+                      <h3 style={{ margin: 0, fontSize: '1.1rem' }}>תובנות AI: קצב ספיגה</h3>
+                    </div>
+                    <div style={{ background: 'white', padding: '1.5rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '5px' }}>קצב מכירות חזוי:</div>
+                      <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#1e293b', marginBottom: '10px' }}>{analysisResult.speed}</div>
+                      <p style={{ fontSize: '0.85rem', lineHeight: '1.6', color: '#475569', margin: 0 }}>
+                        {parseFloat(analysisResult.gap) > 5 
+                          ? `התמחור הנוכחי גבוה ב-${analysisResult.gap}% ממחירי השוק בסביבה. מומלץ לשקול מבצעי "פרי-סייל" או הטבות מימון (כמו 20/80) כדי לשמר קצב מכירות תקין.`
+                          : parseFloat(analysisResult.gap) < -5 
+                          ? `התמחור הנוכחי אגרסיבי ונמוך מהשוק. ניתן לשקול העלאת מחירים הדרגתית כדי למקסם רווחיות, קצב הספיגה צפוי להיות גבוה מאוד.`
+                          : `התמחור מאוזן ותואם את מחירי השוק. ניתן להמשיך באסטרטגיית המכירה הנוכחית.`}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
+                      <List size={20} color="var(--primary)" />
+                      <h3 style={{ margin: 0, fontSize: '1.1rem' }}>עסקאות דומות בסביבה (לאחרונה)</h3>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {analysisResult.comparables.map((comp, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 15px', background: 'white', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.85rem' }}>
+                            <span style={{ fontWeight: 600 }}>{comp.price.toLocaleString()} ₪/מ"ר</span>
+                            <span style={{ color: 'var(--text-muted)' }}>מרחק: {comp.dist}</span>
+                            <span style={{ color: 'var(--text-muted)' }}>תאריך: {comp.date}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'left', marginTop: '5px' }}>
+                        * מקור הנתונים: רשות המסים ומאגרי נדל"ן מסחריים (סימולציה)
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </motion.div>
