@@ -1,9 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   PieChart, FileText, Save, Calculator, Building, 
-  Activity, ChevronDown, Plus, Trash, Info, List, MapPin 
+  Activity, ChevronDown, Plus, Trash, Info, List, MapPin, LogOut 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from './firebase';
+import { useAuth } from './AuthContext';
 
 const INITIAL_BUDGET = [
   { id: 1, section: 'קרקע + ייזום', color: '#3b82f6', items: [
@@ -57,18 +60,15 @@ const createDefaultProject = (id = 'p1', name = 'פרויקט חדש') => ({
 });
 
 const App = () => {
-  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('activeTab') || 'budget');
+  const { user, logout } = useAuth();
+  const [activeTab, setActiveTab] = useState('budget');
   const [runtimeError, setRuntimeError] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   
   // Projects State
-  const [projects, setProjects] = useState(() => {
-    const saved = localStorage.getItem('projcheck_projects');
-    return saved ? JSON.parse(saved) : [createDefaultProject('p1', 'פרויקט ראשון')];
-  });
-  
-  const [activeProjectId, setActiveProjectId] = useState(() => 
-    localStorage.getItem('projcheck_active_id') || (projects[0]?.id || 'p1')
-  );
+  const [projects, setProjects] = useState([createDefaultProject('p1', 'פרויקט ראשון')]);
+  const [activeProjectId, setActiveProjectId] = useState('p1');
 
   const activeProject = useMemo(() => 
     projects.find(p => p.id === activeProjectId) || projects[0],
@@ -90,12 +90,41 @@ const App = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState(null);
 
-  // Save to LocalStorage
+  // --- Firestore: Load on mount ---
   useEffect(() => {
-    localStorage.setItem('activeTab', activeTab);
-    localStorage.setItem('projcheck_projects', JSON.stringify(projects));
-    localStorage.setItem('projcheck_active_id', activeProjectId);
-  }, [activeTab, projects, activeProjectId]);
+    if (!user) return;
+    const docRef = doc(db, 'users', user.uid, 'data', 'app');
+    getDoc(docRef).then(snapshot => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        if (data.projects) setProjects(data.projects);
+        if (data.activeProjectId) setActiveProjectId(data.activeProjectId);
+        if (data.activeTab) setActiveTab(data.activeTab);
+      }
+    }).catch(console.error).finally(() => setIsLoading(false));
+  }, [user]);
+
+  // --- Firestore: Save helper (called explicitly + on state changes) ---
+  const saveToFirestore = useCallback((updatedProjects, updatedActiveId, updatedTab) => {
+    if (!user) return;
+    setIsSaving(true);
+    const docRef = doc(db, 'users', user.uid, 'data', 'app');
+    setDoc(docRef, {
+      projects: updatedProjects,
+      activeProjectId: updatedActiveId,
+      activeTab: updatedTab,
+      updatedAt: new Date().toISOString()
+    }).catch(console.error).finally(() => setIsSaving(false));
+  }, [user]);
+
+  // Auto-save whenever state changes (debounced via useEffect)
+  useEffect(() => {
+    if (isLoading) return;
+    const timer = setTimeout(() => {
+      saveToFirestore(projects, activeProjectId, activeTab);
+    }, 1500); // debounce 1.5s
+    return () => clearTimeout(timer);
+  }, [projects, activeProjectId, activeTab, isLoading, saveToFirestore]);
 
   const updateProject = (updates) => {
     setProjects(prev => prev.map(p => 
@@ -521,13 +550,32 @@ const App = () => {
           </button>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          <button className="tab" style={{ background: 'white', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FileText size={18} /> דוח מלא
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {isSaving && (
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <div style={{ width: 12, height: 12, border: '2px solid #e2e8f0', borderTop: '2px solid #3b82f6', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              שומר...
+            </span>
+          )}
+          <button
+            onClick={() => saveToFirestore(projects, activeProjectId, activeTab)}
+            className="tab active"
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 10px rgba(59, 130, 246, 0.3)' }}
+          >
+            <Save size={18} /> שמור עכשיו
           </button>
-          <button className="tab active" style={{ display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 10px rgba(59, 130, 246, 0.3)' }}>
-            <Save size={18} /> שמירה
+          <button
+            onClick={logout}
+            title={`התנתקות מ-${user?.email}`}
+            style={{
+              padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0',
+              background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center',
+              gap: '6px', fontSize: '0.85rem', color: 'var(--text-muted)', transition: 'all 0.2s'
+            }}
+          >
+            <LogOut size={16} /> יציאה
           </button>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       </header>
 
@@ -788,14 +836,14 @@ const App = () => {
                   <span className="stat-label">הון עצמי נדרש ({equityPercent}%)</span>
                   <div className="stat-value">{Math.round(cashFlowStats.equityAmount).toLocaleString()} ₪</div>
                   <div style={{ marginTop: '10px' }}>
-                    <input type="range" min="0" max="100" value={equityPercent} onChange={(e) => setEquityPercent(Number(e.target.value))} style={{ width: '100%' }} />
+                    <input type="range" min="0" max="100" value={equityPercent} onChange={(e) => updateProject({ equityPercent: Number(e.target.value) })} style={{ width: '100%' }} />
                   </div>
                 </div>
                 <div className="stat-card">
                   <span className="stat-label">זמן בנייה (חודשים)</span>
                   <div className="stat-value">{constructionMonths} <span className="stat-sub">חודשים</span></div>
                   <div style={{ marginTop: '10px' }}>
-                    <input type="number" value={constructionMonths} onChange={(e) => setConstructionMonths(Number(e.target.value))} className="input-field" />
+                    <input type="number" value={constructionMonths} onChange={(e) => updateProject({ constructionMonths: Number(e.target.value) })} className="input-field" />
                   </div>
                 </div>
                 <div className="stat-card">
@@ -828,7 +876,7 @@ const App = () => {
                             onChange={(e) => {
                               const newData = [...salesData];
                               newData[i] = Number(e.target.value);
-                              setSalesData(newData);
+                              updateProject({ salesData: newData });
                             }} 
                             className="input-field" 
                             min="0"
@@ -844,7 +892,7 @@ const App = () => {
                         type="range" 
                         min="0" max="100" 
                         value={p2080Percent} 
-                        onChange={(e) => setP2080Percent(Number(e.target.value))} 
+                        onChange={(e) => updateProject({ p2080Percent: Number(e.target.value) })} 
                         style={{ flex: 1 }} 
                       />
                       <span style={{ fontWeight: 700, width: '40px' }}>{p2080Percent}%</span>
@@ -1072,7 +1120,7 @@ const App = () => {
               <div className="table-container" style={{ marginTop: 0 }}>
                 <div style={{ padding: '1rem', background: '#f8fafc', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ fontSize: '1rem' }}>פירוט מלאי יחידות דיור</h3>
-                  <button onClick={() => setInventoryData([...inventoryData, { id: Date.now(), floor: 1, type: 'יזם', rooms: 3, area: 100, price: 0 }])} className="tab" style={{ background: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 15px' }}>
+                  <button onClick={() => updateProject({ inventoryData: [...inventoryData, { id: Date.now(), floor: 1, type: 'יזם', rooms: 3, area: 100, price: 0 }] })} className="tab" style={{ background: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 15px' }}>
                     <Plus size={16} /> הוסף דירה
                   </button>
                 </div>
@@ -1117,7 +1165,7 @@ const App = () => {
                                 {gap > 0 ? '+' : ''}{gap.toFixed(1)}%
                               </td>
                             )}
-                            <td><button onClick={() => setInventoryData(inventoryData.filter(a => a.id !== apt.id))} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}><Trash size={16} /></button></td>
+                            <td><button onClick={() => updateProject({ inventoryData: inventoryData.filter(a => a.id !== apt.id) })} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}><Trash size={16} /></button></td>
                           </tr>
                         );
                       })}
