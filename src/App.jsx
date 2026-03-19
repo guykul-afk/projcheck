@@ -10,29 +10,28 @@ import { useAuth } from './AuthContext';
 
 const INITIAL_BUDGET = [
   { id: 1, section: 'קרקע + ייזום', color: '#3b82f6', items: [
-    { id: '1-1', name: 'מס רכישה', targets: '6%', quantity: 70200000, total: 4212000, type: 'percent' },
-    { id: '1-2', name: 'היטל השבחה', targets: 'אומדן', quantity: 0, total: 2000000, type: 'lump' },
-    { id: '1-3', name: 'דיור חלופי לבעלי הדירות', targets: 6000, quantity: 1008, total: 6048000, type: 'per_unit' },
-    { id: '1-4', name: 'הובלה', targets: 4000, quantity: 28, total: 224000, type: 'per_unit' },
+    { id: '1-1', name: 'מס רכישה', price: '6%', quantity: 0, total: 4212000, type: 'percent' },
+    { id: '1-2', name: 'היטל השבחה', price: 'אומדן', quantity: 0, total: 2000000, type: 'lump' },
+    { id: '1-3', name: 'דיור חלופי לבעלי הדירות', price: 6000, quantity: 1008, total: 6048000, type: 'per_unit' },
+    { id: '1-4', name: 'הובלה', price: 4000, quantity: 28, total: 224000, type: 'per_unit' },
+    { id: '2-4', name: 'אגרות והיטלים לשטח עילי', price: 464, quantity: 10560, total: 4899840, type: 'per_sqm' },
+    { id: '2-5', name: 'אגרות והיטלים לשטח תת קרקעי', price: 336, quantity: 4400, total: 1478400, type: 'per_sqm' },
+    { id: '2-6', name: 'חב\' חשמל - מגורים', price: 3750, quantity: 82, total: 307500, type: 'per_unit' },
+    { id: '2-2', name: 'פיקוח מטעם הדיירים', price: 10000, quantity: 40, total: 400000, type: 'per_unit' },
   ]},
   { id: 2, section: "פרק ב' - כלליות", color: '#10b981', items: [
-    { id: '2-1', name: 'תכנון וייעוץ', targets: 30000, quantity: 82, total: 2460000, type: 'per_unit' },
-    { id: '2-2', name: 'פיקוח מטעם הדיירים', targets: 10000, quantity: 40, total: 400000, type: 'per_unit' },
-    { id: '2-3', name: 'שיווק', targets: '2.00%', quantity: 168480000, total: 3369600, type: 'percent' },
-    { id: '2-4', name: 'אגרות והיטלים לשטח עילי', targets: 464, quantity: 10560, total: 4899840, type: 'per_sqm' },
-    { id: '2-5', name: 'אגרות והיטלים לשטח תת קרקעי', targets: 336, quantity: 4400, total: 1478400, type: 'per_sqm' },
-    { id: '2-6', name: 'חב\' חשמל - מגורים', targets: 3750, quantity: 82, total: 307500, type: 'per_unit' },
-    { id: '2-7', name: 'תקורה, ניהול ופיקוח', targets: '4.00%', quantity: 84393200, total: 3375728, type: 'percent' },
-    { id: '2-8', name: 'פרסום שיווק', targets: '2.00%', quantity: 144000000, total: 2880000, type: 'percent' },
-    { id: '2-9', name: 'בלתי צפוי מראש', targets: '5.00%', quantity: 0, total: 0, type: 'percent' },
+    { id: '2-1', name: 'תכנון וייעוץ', price: 30000, quantity: 82, total: 2460000, type: 'per_unit' },
+    { id: '2-3', name: 'משפטיות', price: '2.00%', quantity: 168480000, total: 3369600, type: 'percent' },
+    { id: '2-7', name: 'תקורה, ניהול ופיקוח', price: '4.00%', quantity: 84393200, total: 3375728, type: 'percent' },
+    { id: '2-9', name: 'בלתי צפוי מראש', price: '5.00%', quantity: 0, total: 0, type: 'percent' },
   ]},
   { id: 3, section: "פרק ג' - בנייה ישירה", color: '#f59e0b', items: [
-    { id: '3-1', name: 'הריסה ופינוי', targets: 460, quantity: 3500, total: 1610000, type: 'per_sqm' },
-    { id: '3-2', name: 'פיתוח חצר', targets: 500, quantity: 2000, total: 1000000, type: 'per_sqm' },
-    { id: '3-3', name: 'מרתפים', targets: 3478, quantity: 4400, total: 15303200, type: 'per_sqm' },
-    { id: '3-4', name: 'שטח עילי -מרקמי עד 10 קומות', targets: 6000, quantity: 10560, total: 63360000, type: 'per_sqm' },
-    { id: '3-5', name: 'מרפסות', targets: 2500, quantity: 1008, total: 2520000, type: 'per_sqm' },
-    { id: '3-6', name: 'מרפסות גג', targets: 1500, quantity: 400, total: 600000, type: 'per_sqm' },
+    { id: '3-1', name: 'הריסה ופינוי', price: 460, quantity: 3500, total: 1610000, type: 'per_sqm' },
+    { id: '3-2', name: 'פיתוח חצר', price: 500, quantity: 2000, total: 1000000, type: 'per_sqm' },
+    { id: '3-3', name: 'מרתפים', price: 3478, quantity: 4400, total: 15303200, type: 'per_sqm' },
+    { id: '3-4', name: 'שטח עילי -מרקמי עד 10 קומות', price: 6000, quantity: 10560, total: 63360000, type: 'per_sqm' },
+    { id: '3-5', name: 'מרפסות', price: 2500, quantity: 1008, total: 2520000, type: 'per_sqm' },
+    { id: '3-6', name: 'מרפסות גג', price: 1500, quantity: 400, total: 600000, type: 'per_sqm' },
   ]}
 ];
 
@@ -75,16 +74,16 @@ const App = () => {
     [projects, activeProjectId]
   );
 
-  // Derived Project State (for convenience)
-  const budgetData = activeProject.budgetData;
-  const inventoryData = activeProject.inventoryData;
-  const equityPercent = activeProject.equityPercent;
-  const constructionMonths = activeProject.constructionMonths;
-  const salesData = activeProject.salesData;
-  const p2080Percent = activeProject.p2080Percent;
-  const projectAddress = activeProject.address;
-  const marketSqmPrice = activeProject.marketSqmPrice;
-  const financingPercent = activeProject.financingPercent || 7;
+  // Derived Project State (for convenience) - Safe checks
+  const budgetData = activeProject?.budgetData || INITIAL_BUDGET;
+  const inventoryData = activeProject?.inventoryData || [];
+  const equityPercent = activeProject?.equityPercent ?? 30;
+  const constructionMonths = activeProject?.constructionMonths ?? 24;
+  const salesData = activeProject?.salesData || [];
+  const p2080Percent = activeProject?.p2080Percent ?? 50;
+  const projectAddress = activeProject?.address || '';
+  const marketSqmPrice = activeProject?.marketSqmPrice || 0;
+  const financingPercent = activeProject?.financingPercent ?? 7;
 
   // Market Analysis State (Ephemeral)
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -131,6 +130,59 @@ const App = () => {
       p.id === activeProjectId ? { ...p, ...updates } : p
     ));
   };
+
+  // Data Migration
+  useEffect(() => {
+    if (isLoading) return;
+    let modified = false;
+    const newProjects = projects.map(p => {
+      let pMod = false;
+      let allItems = p.budgetData.flatMap(s => s.items.map(i => {
+        let iMod = false;
+        let newItem = { ...i };
+        // targets -> price
+        if (newItem.targets !== undefined && newItem.price === undefined) {
+          newItem.price = newItem.targets;
+          delete newItem.targets;
+          iMod = true;
+        }
+        // Rename שיווק (2-3) to משפטיות
+        if (newItem.id === '2-3' && newItem.name === 'שיווק') {
+          newItem.name = 'משפטיות';
+          iMod = true;
+        }
+        if (iMod) pMod = true;
+        return newItem;
+      }));
+
+      // Remove 2-8
+      const count = allItems.length;
+      allItems = allItems.filter(i => i.id !== '2-8');
+      if (allItems.length !== count) pMod = true;
+
+      // Check sectioning
+      const idsToMove = ['2-4', '2-5', '2-6', '2-2'];
+      const sect1Ids = p.budgetData[0].items.map(i => i.id);
+      const shouldMove = allItems.some(i => idsToMove.includes(i.id) && !sect1Ids.includes(i.id));
+
+      if (pMod || shouldMove) {
+        modified = true;
+        const s1 = allItems.filter(i => i.id.startsWith('1-') || idsToMove.includes(i.id));
+        const s2 = allItems.filter(i => i.id.startsWith('2-') && !idsToMove.includes(i.id));
+        const s3 = allItems.filter(i => i.id.startsWith('3-'));
+        return {
+          ...p,
+          budgetData: [
+            { ...p.budgetData[0], items: s1 },
+            { ...p.budgetData[1], items: s2 },
+            { ...p.budgetData[2], items: s3 }
+          ]
+        };
+      }
+      return p;
+    });
+    if (modified) setProjects(newProjects);
+  }, [projects, isLoading]);
 
   // Initialize/Sync salesData when months change
   useEffect(() => {
@@ -207,50 +259,81 @@ const App = () => {
 
   // Budget Calculations & Sorting
   const budgetStats = useMemo(() => {
+    const totalUnits = inventoryStats.totalUnits;
+    const ownerUnits = inventoryStats.ownerUnits;
+
     // Phase 1: Calculate basic totals and specific formulas
     const processedSections = budgetData.map(sec => {
       const items = sec.items.map(item => {
         let total = item.total;
+        let quantity = Number(item.quantity) || 0;
+        let priceValue = parseFloat(item.price) || 0;
         
-        // Betterment Levy (היטל השבחה)
-        if (item.id === '1-2') {
-          total = Number(item.quantity) || 0;
+        // Purchase Tax (מס רכישה) - Manual Total
+        if (item.id === '1-1') {
+          // Keep manual total
         }
         // Alternative Housing (דיור חלופי)
         else if (item.id === '1-3') {
-          total = (Number(item.targets) || 0) * inventoryStats.ownerUnits * (constructionMonths + 3);
+          quantity = (constructionMonths + 4) * ownerUnits;
+          total = priceValue * quantity;
         }
-        // Moving (הובלה)
-        else if (item.id === '1-4') {
-          total = inventoryStats.ownerUnits * 2 * (Number(item.targets) || 0);
+        // Planning & Consulting (תכנון וייעוץ)
+        else if (item.id === '2-1') {
+          quantity = totalUnits;
+          total = priceValue * quantity;
+        }
+        // Tenant Supervision (פיקוח מטעם דיירים)
+        else if (item.id === '2-2') {
+          quantity = constructionMonths + 6;
+          total = priceValue * quantity;
+        }
+        // Electric Co (חב' חשמל)
+        else if (item.id === '2-6') {
+          quantity = totalUnits;
+          total = priceValue * quantity;
         }
         // Marketing (שיווק)
         else if (item.id === '2-3') {
-          const pct = parseFloat(item.targets) / 100 || 0;
-          total = pct * inventoryStats.devValueInclVat;
+          const pct = parseFloat(item.price) / 100 || 0;
+          quantity = inventoryStats.devValueInclVat;
+          total = pct * quantity;
+        }
+        // Levies & Fees (אגרות והיטלים)
+        else if (item.id === '2-4' || item.id === '2-5') {
+          total = priceValue * quantity;
+        }
+        // Direct Construction (Chapter 3)
+        else if (item.id.startsWith('3-')) {
+          total = priceValue * quantity;
         }
         
-        return { ...item, total };
+        return { ...item, quantity, total };
       });
       return { ...sec, items };
     });
 
-    // Phase 2: Unforeseen (בלתי צפוי מראש) - based on Sect 2 & 3
-    const subtotalBasic = processedSections.reduce((acc, s) => acc + s.items.reduce((sum, i) => i.id !== '2-9' ? sum + i.total : sum, 0), 0);
-    const directAndGeneralTotal = processedSections.filter(s => s.id === 2 || s.id === 3).reduce((acc, s) => acc + s.items.reduce((sum, i) => i.id !== '2-9' ? sum + i.total : sum, 0), 0);
+    // Phase 2: Overhead and Contingency
+    // Sum all items EXCEPT 2-7 and 2-9
+    const getBaseSum = (itemsToExclude) => processedSections.reduce((acc, s) => acc + s.items.reduce((sum, i) => !itemsToExclude.includes(i.id) ? sum + i.total : sum, 0), 0);
     
     const finalSections = processedSections.map(sec => {
-      if (sec.id === 2) {
-        const items = sec.items.map(item => {
-          if (item.id === '2-9') {
-            const pct = parseFloat(item.targets) / 100 || 0;
-            return { ...item, total: pct * directAndGeneralTotal };
-          }
-          return item;
-        });
-        return { ...sec, items };
-      }
-      return sec;
+      const items = sec.items.map(item => {
+        // Overhead (תקורה)
+        if (item.id === '2-7') {
+          const pct = parseFloat(item.price) / 100 || 0;
+          const sumExclOverhead = getBaseSum(['2-7', '2-9']);
+          return { ...item, quantity: sumExclOverhead, total: pct * sumExclOverhead };
+        }
+        // Contingency (בלתי צפוי מראש)
+        else if (item.id === '2-9') {
+          const pct = parseFloat(item.price) / 100 || 0;
+          const sumExclContingency = getBaseSum(['2-9']);
+          return { ...item, quantity: sumExclContingency, total: pct * sumExclContingency };
+        }
+        return item;
+      });
+      return { ...sec, items };
     });
 
     const sections = finalSections.map(sec => ({
@@ -259,10 +342,9 @@ const App = () => {
       color: sec.color
     }));
     
-    // Phase 3: Financing (מימון וערבויות) - % of final total (Algebraic solution: F = p * (Sum + F) => F = p*Sum / (1-p))
-    const sumExclFinancing = sections.reduce((acc, s) => acc+s.total, 0);
-    const finPctValue = financingPercent / 100;
-    const financing = Math.round((sumExclFinancing * finPctValue) / (1 - finPctValue));
+    // Phase 3: Financing (מימון וערבויות) - % of final total (excluding itself)
+    const sumExclFinancing = sections.reduce((acc, s) => acc + s.total, 0);
+    const financing = Math.round(sumExclFinancing * (financingPercent / 100));
     
     sections.push({ name: 'מימון וערבויות', total: financing, color: '#6366f1' });
     const grandTotal = sumExclFinancing + financing;
@@ -272,8 +354,8 @@ const App = () => {
     allItems.push({ id: 'fin', name: 'מימון וערבויות', total: financing, section: 'מימון' });
     const sortedItems = [...allItems].sort((a, b) => b.total - a.total);
 
-    return { sections, grandTotal, sortedItems, finalSections };
-  }, [budgetData, inventoryStats, constructionMonths]);
+    return { sections, grandTotal, sortedItems, finalSections, financing };
+  }, [budgetData, inventoryStats, constructionMonths, financingPercent]);
 
   // Cash Flow Calculations
   const cashFlowStats = useMemo(() => {
@@ -647,8 +729,8 @@ const App = () => {
                   <thead>
                     <tr>
                       <th style={{ width: '30%' }}>תיאור הסעיף</th>
-                      <th>בסיס / מטרה (₪ / %)</th>
-                      <th>כמות / בסיס</th>
+                      <th>מחיר (₪ / %)</th>
+                      <th>כמות</th>
                       <th style={{ textAlign: 'left' }}>סה"כ (₪)</th>
                     </tr>
                   </thead>
@@ -658,14 +740,47 @@ const App = () => {
                         <tr className="section-header">
                           <td colSpan="4" style={{ padding: '0.75rem 1rem', fontSize: '1rem' }}>{section.section}</td>
                         </tr>
-                        {section.items.map((item) => (
-                          <tr key={item.id}>
-                            <td style={{ paddingRight: '2rem' }}>{item.name}</td>
-                            <td><input type="text" value={item.targets} onChange={(e) => handleBudgetChange(section.id, item.id, 'targets', isNaN(e.target.value) || e.target.value === '' ? e.target.value : Number(e.target.value))} className="input-field" /></td>
-                            <td><input type="number" value={item.quantity} onChange={(e) => handleBudgetChange(section.id, item.id, 'quantity', Number(e.target.value))} className="input-field" /></td>
-                            <td style={{ textAlign: 'left', fontWeight: 600 }}>{item.total.toLocaleString()} ₪</td>
-                          </tr>
-                        ))}
+                        {section.items.map((item) => {
+                          const isAutoQuantity = ['1-3', '2-1', '2-2', '2-6', '2-3', '2-7', '2-9'].includes(item.id);
+                          const isManualTotal = item.id === '1-1';
+                          
+                          return (
+                            <tr key={item.id}>
+                              <td style={{ paddingRight: '2rem' }}>{item.name}</td>
+                              <td>
+                                <input 
+                                  type="text" 
+                                  value={item.price} 
+                                  onChange={(e) => handleBudgetChange(section.id, item.id, 'price', isNaN(e.target.value) || e.target.value === '' ? e.target.value : Number(e.target.value))} 
+                                  className="input-field" 
+                                />
+                              </td>
+                              <td>
+                                <input 
+                                  type="number" 
+                                  value={Math.round(item.quantity) || 0} 
+                                  onChange={(e) => handleBudgetChange(section.id, item.id, 'quantity', Number(e.target.value))} 
+                                  className="input-field"
+                                  disabled={isAutoQuantity}
+                                  style={isAutoQuantity ? { background: '#f1f5f9', cursor: 'not-allowed' } : {}}
+                                />
+                              </td>
+                              <td style={{ textAlign: 'left', fontWeight: 600 }}>
+                                {isManualTotal ? (
+                                  <input 
+                                    type="number" 
+                                    value={item.total} 
+                                    onChange={(e) => handleBudgetChange(section.id, item.id, 'total', Number(e.target.value))} 
+                                    className="input-field"
+                                    style={{ width: '120px', textAlign: 'left', fontWeight: 600 }}
+                                  />
+                                ) : (
+                                  `${Math.round(item.total).toLocaleString()} ₪`
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                         <tr style={{ background: '#f8fafc', fontWeight: 600 }}>
                           <td colSpan="3">סה"כ {section.section}</td>
                           <td style={{ textAlign: 'left' }}>{section.items.reduce((s, i) => s + i.total, 0).toLocaleString()} ₪</td>
@@ -689,7 +804,7 @@ const App = () => {
                         </div>
                       </td>
                       <td>חישוב כאחוז מהעלות הכוללת</td>
-                      <td style={{ textAlign: 'left', fontWeight: 600 }}>{budgetStats.grandTotal - (budgetStats.grandTotal / (1 + (financingPercent/100)))} ₪</td>
+                      <td style={{ textAlign: 'left', fontWeight: 600 }}>{budgetStats.financing.toLocaleString()} ₪</td>
                     </tr>
                     <tr className="total-row" style={{ fontSize: '1.25rem', color: 'var(--primary)' }}>
                       <td colSpan="3" style={{ padding: '1.5rem 1rem' }}>סה"כ עלות הקמה ומימון</td>
