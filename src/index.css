@@ -1,115 +1,255 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
 :root {
-  --primary: #3b82f6;
-  --primary-hover: #2563eb;
-  --bg-color: #f0f7ff; /* Very light blue */
-  --card-bg: #ffffff;
-  --text-main: #1e293b;
-  --text-muted: #64748b;
-  --border-color: #e2e8f0;
-  --header-bg: #f8fafc;
-  --accent: #0ea5e9;
+  /* Canvas & Depth (Grayscale & Teal) */
+  --bg-canvas: #F4F4F9;   /* Off-white analytical background */
+  --bg-surface: #FFFFFF;  /* Clean white for cards/sections */
+  --bg-elevated: #E9E9F0; /* Subtle contrast for headers/tools */
+  
+  /* Borders & Dividers */
+  --border-sharp: #E2E8F0; /* Sleek light borders */
+  --border-subtle: rgba(226, 232, 240, 0.5);
+  
+  /* Text Layers */
+  --text-pri: #1A1A1E;    /* High-contrast charcoal */
+  --text-sec: #264653;    /* Deep Teal - professional indicator */
+  --text-muted: #6B7280;  /* Standard medium gray */
+  
+  /* Primary Action & Brand */
+  --secondary: #264653;   /* Deep Teal - Stability */
+  --accent: #58A6FF;      /* Electric Blue - Action */
+  
+  /* State Indicators (Analytical) */
+  --success: #3E4A3D;     /* Sage Green - Profit */
+  --danger: #E76F51;      /* Burnt Red - Loss/Risk */
+  --warning: #F4A261;     /* Sandy Orange */
+  
+  /* Layout */
+  --container-max: 1600px;
+  --radius-sharp: 0.2rem;
+  --radius-tactical: 0.4rem;
+  --shadow-premium: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --shadow-tactical: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  font-family: 'Assistant', sans-serif;
-  background-color: var(--bg-color);
-  color: var(--text-main);
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+  background-color: var(--bg-canvas);
+  color: var(--text-pri);
   direction: rtl;
-  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
 }
 
 #root {
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .container {
-  max-width: 1200px;
+  max-width: var(--container-max);
   margin: 0 auto;
-  padding: 2rem;
+  padding: 2rem 3rem;
 }
 
-h1, h2, h3 {
-  color: var(--text-main);
+/* --- Premium Components --- */
+
+.tactical-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-sharp);
+  border-radius: var(--radius-sharp);
+  padding: 1.5rem;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-premium);
 }
+
+.tactical-card:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-tactical);
+  transform: translateY(-2px);
+}
+
+.mono-number {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* --- Bento Grid System --- */
+
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 1.25rem;
+}
+
+.col-12 { grid-column: span 12; }
+.col-8 { grid-column: span 8; }
+.col-4 { grid-column: span 4; }
+.col-3 { grid-column: span 3; }
+.col-6 { grid-column: span 6; }
+
+/* --- Tables (High Density Analytical) --- */
 
 .table-container {
-  background: var(--card-bg);
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-sharp);
+  border-radius: var(--radius-sharp);
   overflow: hidden;
-  margin-top: 2rem;
-  border: 1px solid var(--border-color);
+  margin-top: 1rem;
+  box-shadow: var(--shadow-premium);
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
   text-align: right;
+  font-size: 0.85rem;
 }
 
 th {
-  background: var(--header-bg);
-  padding: 1rem;
+  background: var(--bg-canvas);
+  padding: 0.85rem 1rem;
   font-weight: 600;
-  color: var(--text-muted);
-  border-bottom: 2px solid var(--border-color);
+  color: var(--text-sec);
+  border-bottom: 2px solid var(--border-sharp);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.7rem;
 }
 
 td {
-  padding: 0.85rem 1rem;
-  border-bottom: 1px solid var(--border-color);
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-pri);
 }
 
-tr:hover {
-  background: #f8fafc;
+tr:hover td {
+  background: rgba(88, 166, 255, 0.03); /* Electric Blue hint */
 }
 
 .section-header {
-  background: #f1f5f9 !important;
+  background: var(--bg-elevated) !important;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--secondary);
+  border-top: 3px solid var(--secondary);
 }
+
+/* --- Tabs (Analytical Nav) --- */
 
 .tabs {
   display: flex;
-  gap: 1rem;
-  margin-bottom: 2rem;
-  border-bottom: 2px solid var(--border-color);
-  padding-bottom: 0.5rem;
+  gap: 2px;
+  background: var(--bg-elevated);
+  padding: 4px;
+  border-radius: var(--radius-sharp);
+  margin-bottom: 2.5rem;
+  width: fit-content;
+  border: 1px solid var(--border-sharp);
 }
 
 .tab {
-  padding: 0.5rem 1.5rem;
+  padding: 0.6rem 1.5rem;
   cursor: pointer;
-  border-radius: 8px;
-  font-weight: 500;
-  transition: all 0.2s;
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  transition: all 0.2s ease;
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.tab:hover {
+  color: var(--text-pri);
+  background: rgba(0, 0, 0, 0.02);
 }
 
 .tab.active {
-  background: var(--primary);
-  color: white;
+  background: var(--bg-surface);
+  color: var(--secondary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.tab:not(.active):hover {
-  background: #e2e8f0;
-}
+/* --- Inputs & Actions --- */
 
 input {
-  width: 100%;
-  padding: 0.4rem;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  font-family: inherit;
+  background: var(--bg-surface);
+  color: var(--text-pri);
+  border: 1px solid var(--border-sharp);
+  border-radius: 2px;
+  padding: 0.45rem 0.75rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  outline: none;
+  transition: all 0.2s;
 }
 
-.total-row {
-  background: #eef2ff;
-  font-weight: 800;
+input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.1);
+}
+
+button.primary {
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: var(--radius-sharp);
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.2s;
+}
+
+button.primary:hover {
+  filter: brightness(1.1);
+}
+
+/* --- Utility Animations --- */
+
+.hardware-accelerated {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}
+
+.success-text { color: var(--success); }
+.danger-text { color: var(--danger); }
+.warning-text { color: var(--warning); }
+
+/* --- Chart Overrides --- */
+.chart-tooltip {
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border-sharp) !important;
+  border-radius: var(--radius-sharp) !important;
+  color: var(--text-pri) !important;
+  box-shadow: var(--shadow-tactical) !important;
+  padding: 10px !important;
+  z-index: 100;
+}
+
+.balance-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 2px 4px rgba(88, 166, 255, 0.2));
+}
+
+.chart-axis-label {
+  font-family: 'Outfit', sans-serif;
+  font-size: 11px;
+  fill: var(--text-muted);
+}
+
+.negative-zone {
+  fill: url(#negGradient);
+  opacity: 0.15;
 }
