@@ -1,0 +1,2215 @@
+{
+  "activeProjectId": "p1776341162178",
+  "activeTab": "inventory",
+  "projects": [
+    {
+      "address": "",
+      "budgetData": [
+        {
+          "color": "#3b82f6",
+          "id": 1,
+          "items": [
+            {
+              "id": "1-1",
+              "name": "מס רכישה",
+              "price": "אמדן",
+              "quantity": 600000,
+              "targets": 5,
+              "total": 600000,
+              "type": "percent"
+            },
+            {
+              "id": "1-2",
+              "name": "היטל השבחה",
+              "price": "אומדן",
+              "quantity": 700000,
+              "total": 550000,
+              "type": "lump"
+            },
+            {
+              "id": "1-3",
+              "name": "דיור חלופי לבעלי הדירות",
+              "price": 5500,
+              "quantity": 0,
+              "targets": 5500,
+              "total": 6048000,
+              "type": "per_unit"
+            },
+            {
+              "id": "1-4",
+              "name": "הובלה",
+              "price": 4000,
+              "quantity": 12,
+              "targets": 4000,
+              "total": 224000,
+              "type": "per_unit"
+            },
+            {
+              "id": "2-2",
+              "name": "פיקוח מטעם הדיירים",
+              "price": 10000,
+              "quantity": 40,
+              "targets": 9000,
+              "total": 400000,
+              "type": "per_unit"
+            },
+            {
+              "id": "2-4",
+              "name": "אגרות והיטלים לשטח עילי",
+              "price": 464,
+              "quantity": 2100,
+              "targets": 436,
+              "total": 4899840,
+              "type": "per_sqm"
+            },
+            {
+              "id": "2-5",
+              "name": "אגרות והיטלים לשטח תת קרקעי",
+              "price": 336,
+              "quantity": 1000,
+              "total": 1478400,
+              "type": "per_sqm"
+            },
+            {
+              "id": "2-6",
+              "name": "חב' חשמל - מגורים",
+              "price": 3750,
+              "quantity": 82,
+              "total": 307500,
+              "type": "per_unit"
+            },
+            {
+              "id": "1-5",
+              "name": "הוצאות ארגון דיירים",
+              "price": 0,
+              "quantity": 0,
+              "total": 0,
+              "type": "per_unit"
+            }
+          ],
+          "section": "קרקע + ייזום"
+        },
+        {
+          "color": "#10b981",
+          "id": 2,
+          "items": [
+            {
+              "id": "2-1",
+              "name": "תכנון וייעוץ",
+              "price": 30000,
+              "quantity": 500,
+              "targets": 5048,
+              "total": 2460000,
+              "type": "per_unit"
+            },
+            {
+              "id": "2-3",
+              "name": "משפטיות",
+              "price": 1,
+              "quantity": 168480000,
+              "targets": "2%",
+              "total": 3369600,
+              "type": "percent"
+            },
+            {
+              "id": "2-7",
+              "name": "תקורה, ניהול ופיקוח",
+              "price": 10000,
+              "quantity": 84393200,
+              "targets": "תקורה ",
+              "total": 3375728,
+              "type": "percent"
+            },
+            {
+              "id": "2-9",
+              "name": "בלתי צפוי מראש",
+              "price": "5.00%",
+              "quantity": 0,
+              "total": 0,
+              "type": "percent"
+            },
+            {
+              "id": "2-8",
+              "name": "שיווק",
+              "price": "1%",
+              "quantity": 0,
+              "total": 0,
+              "type": "percent"
+            },
+            {
+              "id": "2-11",
+              "name": "קרן אחזקה",
+              "price": 0,
+              "quantity": 0,
+              "total": 0,
+              "type": "per_unit"
+            },
+            {
+              "id": "2-12",
+              "name": "פיקוח הנדסי",
+              "price": 8000,
+              "quantity": 0,
+              "total": 0,
+              "type": "per_unit"
+            },
+            {
+              "id": "2-13",
+              "name": "פיקוח מטעם גוף מממן",
+              "price": 5000,
+              "quantity": 0,
+              "total": 0,
+              "type": "per_unit"
+            }
+          ],
+          "section": "פרק ב' - כלליות"
+        },
+        {
+          "color": "#f59e0b",
+          "id": 3,
+          "items": [
+            {
+              "id": "3-1",
+              "name": "הריסה ופינוי",
+              "price": 600,
+              "quantity": 460,
+              "targets": 500,
+              "total": 1610000,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-2",
+              "name": "פיתוח חצר",
+              "price": 200,
+              "quantity": 500,
+              "total": 1000000,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-3",
+              "name": "מרתפים",
+              "price": 1000,
+              "quantity": 3100,
+              "targets": 500,
+              "total": 15303200,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-4",
+              "name": "שטח עילי -מרקמי עד 10 קומות",
+              "price": 2120,
+              "quantity": 5800,
+              "total": 63360000,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-5",
+              "name": "מרפסות",
+              "price": 191,
+              "quantity": 2500,
+              "total": 2520000,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-6",
+              "name": "מרפסות גג",
+              "price": 100,
+              "quantity": 1500,
+              "total": 600000,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-7",
+              "name": "קומת עמודים מפולשת",
+              "price": 81,
+              "quantity": 1500,
+              "total": 0,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-8",
+              "name": "מטלה ציבורית",
+              "price": 0,
+              "quantity": 0,
+              "total": 0,
+              "type": "per_sqm"
+            }
+          ],
+          "section": "פרק ג' - בנייה ישירה"
+        }
+      ],
+      "constructionMonths": 26,
+      "equityPercent": 15,
+      "financingPercent": 6,
+      "id": "p1",
+      "inventoryData": [
+        {
+          "area": 85,
+          "floor": 1,
+          "id": 1,
+          "price": 2450000,
+          "rooms": 4,
+          "type": "יזם"
+        },
+        {
+          "area": 105,
+          "floor": 1,
+          "id": 2,
+          "price": 2720000,
+          "rooms": 4,
+          "type": "יזם"
+        },
+        {
+          "area": 85,
+          "floor": 2,
+          "id": 3,
+          "price": 2460000,
+          "rooms": 4,
+          "type": "יזם"
+        },
+        {
+          "area": 105,
+          "floor": 2,
+          "id": 4,
+          "price": 2730000,
+          "rooms": 4,
+          "type": "בעלים"
+        },
+        {
+          "area": 85,
+          "floor": 3,
+          "id": 5,
+          "price": 2470000,
+          "rooms": 4,
+          "type": "יזם"
+        },
+        {
+          "area": 105,
+          "floor": 3,
+          "id": 6,
+          "price": 2740000,
+          "rooms": 5,
+          "type": "בעלים"
+        },
+        {
+          "area": 85,
+          "floor": 4,
+          "id": 7,
+          "price": 2480000,
+          "rooms": 4,
+          "type": "יזם"
+        },
+        {
+          "area": 105,
+          "floor": 4,
+          "id": 8,
+          "price": 2760000,
+          "rooms": 4,
+          "type": "בעלים"
+        },
+        {
+          "area": 85,
+          "floor": 5,
+          "id": 9,
+          "price": 2490000,
+          "rooms": 4,
+          "type": "יזם"
+        },
+        {
+          "area": 105,
+          "floor": 5,
+          "id": 10,
+          "price": 2780000,
+          "rooms": 4,
+          "type": "בעלים"
+        },
+        {
+          "area": 85,
+          "floor": 6,
+          "id": 11,
+          "price": 2510000,
+          "rooms": 4,
+          "type": "יזם"
+        },
+        {
+          "area": 105,
+          "floor": 6,
+          "id": 12,
+          "price": 2800000,
+          "rooms": 4,
+          "type": "בעלים"
+        },
+        {
+          "area": 85,
+          "floor": 7,
+          "id": 1774460737106,
+          "price": 2530000,
+          "rooms": 4,
+          "type": "יזם"
+        },
+        {
+          "area": 105,
+          "floor": 7,
+          "id": 1774460737639,
+          "price": 2820000,
+          "rooms": 4,
+          "type": "יזם"
+        },
+        {
+          "area": 85,
+          "floor": 8,
+          "id": 1774460739214,
+          "price": 2550000,
+          "rooms": 4,
+          "type": "יזם"
+        },
+        {
+          "area": 105,
+          "floor": 8,
+          "id": 1774460739484,
+          "price": 2840000,
+          "rooms": 4,
+          "type": "בעלים"
+        },
+        {
+          "area": 100,
+          "floor": 9,
+          "id": 1774460739731,
+          "price": 3100000,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 120,
+          "floor": 9,
+          "id": 1774460743158,
+          "price": 3400000,
+          "rooms": 4,
+          "type": "יזם"
+        }
+      ],
+      "marketSqmPrice": 0,
+      "name": "פאירברג 3",
+      "p2080Percent": 10,
+      "salesData": [
+        3,
+        1,
+        1,
+        1,
+        1,
+        0,
+        0,
+        1,
+        0,
+        1,
+        2,
+        1,
+        0
+      ]
+    },
+    {
+      "address": "",
+      "budgetData": [
+        {
+          "color": "#3b82f6",
+          "id": 1,
+          "items": [
+            {
+              "id": "1-1",
+              "name": "מס רכישה",
+              "price": "6%",
+              "quantity": 0,
+              "total": 1723000,
+              "type": "percent"
+            },
+            {
+              "id": "1-2",
+              "name": "היטל השבחה",
+              "price": "אומדן",
+              "quantity": 0,
+              "total": 1200000,
+              "type": "lump"
+            },
+            {
+              "id": "1-3",
+              "name": "דיור חלופי לבעלי הדירות",
+              "price": 5600,
+              "quantity": 1008,
+              "total": 6048000,
+              "type": "per_unit"
+            },
+            {
+              "id": "1-4",
+              "name": "הובלה",
+              "price": 3500,
+              "quantity": 48,
+              "total": 224000,
+              "type": "per_unit"
+            },
+            {
+              "id": "2-4",
+              "name": "אגרות והיטלים לשטח עילי",
+              "price": 464,
+              "quantity": 6787,
+              "total": 4899840,
+              "type": "per_sqm"
+            },
+            {
+              "id": "2-5",
+              "name": "אגרות והיטלים לשטח תת קרקעי",
+              "price": 336,
+              "quantity": 2799,
+              "total": 1478400,
+              "type": "per_sqm"
+            },
+            {
+              "id": "2-6",
+              "name": "חב' חשמל - מגורים",
+              "price": 3750,
+              "quantity": 82,
+              "total": 307500,
+              "type": "per_unit"
+            },
+            {
+              "id": "2-2",
+              "name": "פיקוח מטעם הדיירים",
+              "price": 12000,
+              "quantity": 40,
+              "total": 400000,
+              "type": "per_unit"
+            },
+            {
+              "id": "1-5",
+              "name": "הוצאות ארגון דיירים",
+              "price": 0,
+              "quantity": 0,
+              "total": 0,
+              "type": "per_unit"
+            }
+          ],
+          "section": "קרקע + ייזום"
+        },
+        {
+          "color": "#10b981",
+          "id": 2,
+          "items": [
+            {
+              "id": "2-1",
+              "name": "תכנון וייעוץ",
+              "price": 32000,
+              "quantity": 82,
+              "total": 2460000,
+              "type": "per_unit"
+            },
+            {
+              "id": "2-3",
+              "name": "משפטיות",
+              "price": "2.00%",
+              "quantity": 168480000,
+              "total": 3369600,
+              "type": "percent"
+            },
+            {
+              "id": "2-8",
+              "name": "שיווק",
+              "price": 2,
+              "quantity": 168480000,
+              "total": 3369600,
+              "type": "percent"
+            },
+            {
+              "id": "2-7",
+              "name": "תקורה, ניהול ופיקוח",
+              "price": 20000,
+              "quantity": 84393200,
+              "total": 3375728,
+              "type": "percent"
+            },
+            {
+              "id": "2-9",
+              "name": "בלתי צפוי מראש",
+              "price": "5.00%",
+              "quantity": 0,
+              "total": 0,
+              "type": "percent"
+            },
+            {
+              "id": "2-11",
+              "name": "קרן אחזקה",
+              "price": 0,
+              "quantity": 0,
+              "total": 0,
+              "type": "per_unit"
+            },
+            {
+              "id": "2-12",
+              "name": "פיקוח הנדסי",
+              "price": 10000,
+              "quantity": 0,
+              "total": 0,
+              "type": "per_unit"
+            },
+            {
+              "id": "2-13",
+              "name": "פיקוח מטעם גוף מממן",
+              "price": 6000,
+              "quantity": 0,
+              "total": 0,
+              "type": "per_unit"
+            }
+          ],
+          "section": "פרק ב' - כלליות"
+        },
+        {
+          "color": "#f59e0b",
+          "id": 3,
+          "items": [
+            {
+              "id": "3-1",
+              "name": "הריסה ופינוי",
+              "price": 460,
+              "quantity": 1400,
+              "total": 1610000,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-2",
+              "name": "פיתוח חצר",
+              "price": 500,
+              "quantity": 1000,
+              "total": 1000000,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-3",
+              "name": "מרתפים",
+              "price": 3478,
+              "quantity": 2799,
+              "total": 15303200,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-4",
+              "name": "שטח עילי -מרקמי עד 10 קומות",
+              "price": 6000,
+              "quantity": 6787,
+              "total": 63360000,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-5",
+              "name": "מרפסות",
+              "price": 2500,
+              "quantity": 784,
+              "total": 2520000,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-6",
+              "name": "מרפסות גג",
+              "price": 1500,
+              "quantity": 203,
+              "total": 600000,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-7",
+              "name": "קומת עמודים מפולשת",
+              "price": 1000,
+              "quantity": 46,
+              "total": 0,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-8",
+              "name": "מטלה ציבורית",
+              "price": 1,
+              "quantity": 200000,
+              "total": 0,
+              "type": "per_sqm"
+            }
+          ],
+          "section": "פרק ג' - בנייה ישירה"
+        }
+      ],
+      "constructionMonths": 30,
+      "equityPercent": 15,
+      "financingPercent": 6,
+      "id": "p1774077459166",
+      "inventoryData": [
+        {
+          "area": 148,
+          "balcony": 125,
+          "category": "מיוחדת",
+          "floor": 0,
+          "id": 1776334389915,
+          "price": 4567500,
+          "rooms": 5,
+          "type": "יזם"
+        },
+        {
+          "area": 70,
+          "balcony": 70,
+          "category": "מיוחדת",
+          "floor": 0,
+          "id": 1776334829105,
+          "price": 2943500,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 68,
+          "category": "מיוחדת",
+          "floor": 0,
+          "id": 1776335045828,
+          "price": 3146500,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 70,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 1,
+          "id": 1776335090011,
+          "price": 2151800,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 70,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 1,
+          "id": 1776335381358,
+          "price": 2151800,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 1,
+          "id": 1776335385684,
+          "price": 2354800,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 1,
+          "id": 1776335386076,
+          "price": 2354800,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 1,
+          "id": 1776335440234,
+          "price": 2354800,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 1,
+          "id": 1776335441735,
+          "price": 2354800,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 1,
+          "id": 1776335444658,
+          "price": 2151800,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 1,
+          "id": 1776335445468,
+          "price": 2151800,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 2,
+          "id": 1776335458988,
+          "price": 2172100,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 2,
+          "id": 1776335471193,
+          "price": 2172100,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 2,
+          "id": 1776335471605,
+          "price": 2172100,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 2,
+          "id": 1776335471995,
+          "price": 2172100,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 2,
+          "id": 1776335475011,
+          "price": 2375100,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 2,
+          "id": 1776335489562,
+          "price": 2375100,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 2,
+          "id": 1776335489810,
+          "price": 2375100,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 2,
+          "id": 1776335490126,
+          "price": 2375100,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 3,
+          "id": 1776335490509,
+          "price": 2395400,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 3,
+          "id": 1776335560556,
+          "price": 2395400,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 3,
+          "id": 1776335560961,
+          "price": 2395400,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 3,
+          "id": 1776335561350,
+          "price": 2395400,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 3,
+          "id": 1776335565957,
+          "price": 2192400,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 3,
+          "id": 1776335579562,
+          "price": 2192400,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 3,
+          "id": 1776335580127,
+          "price": 2192400,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 3,
+          "id": 1776335580562,
+          "price": 2192400,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 4,
+          "id": 1776335595039,
+          "price": 2415700,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 4,
+          "id": 1776335595377,
+          "price": 2415700,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 4,
+          "id": 1776335595887,
+          "price": 2415700,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 4,
+          "id": 1776335596240,
+          "price": 2415700,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 4,
+          "id": 1776335616403,
+          "price": 2212700,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 4,
+          "id": 1776335624405,
+          "price": 2212700,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 4,
+          "id": 1776335624736,
+          "price": 2212700,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 4,
+          "id": 1776335625089,
+          "price": 2212700,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 5,
+          "id": 1776335630907,
+          "price": 2436000,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 5,
+          "id": 1776335637325,
+          "price": 2436000,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 5,
+          "id": 1776335637506,
+          "price": 2436000,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 5,
+          "id": 1776335637685,
+          "price": 2436000,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 5,
+          "id": 1776335639589,
+          "price": 2233000,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 5,
+          "id": 1776335645586,
+          "price": 2233000,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 5,
+          "id": 1776335645745,
+          "price": 2233000,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 5,
+          "id": 1776335645940,
+          "price": 2233000,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 6,
+          "id": 1776335669448,
+          "price": 2253300,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 6,
+          "id": 1776335682459,
+          "price": 2253300,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 6,
+          "id": 1776335682671,
+          "price": 2253300,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 6,
+          "id": 1776335682888,
+          "price": 2253300,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 6,
+          "id": 1776335690563,
+          "price": 2456300,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 6,
+          "id": 1776335707503,
+          "price": 2456300,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 6,
+          "id": 1776335707673,
+          "price": 2456300,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 6,
+          "id": 1776335707836,
+          "price": 2456300,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 7,
+          "id": 1776335715694,
+          "price": 2273600,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 7,
+          "id": 1776335722175,
+          "price": 2273600,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 7,
+          "id": 1776335722346,
+          "price": 2273600,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 7,
+          "id": 1776335722533,
+          "price": 2273600,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 7,
+          "id": 1776335723913,
+          "price": 2476600,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 7,
+          "id": 1776335730412,
+          "price": 2476600,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 7,
+          "id": 1776335730555,
+          "price": 2476600,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 7,
+          "id": 1776335730742,
+          "price": 2476600,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 8,
+          "id": 1776335741091,
+          "price": 2293900,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 8,
+          "id": 1776335749308,
+          "price": 2293900,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 8,
+          "id": 1776335754018,
+          "price": 2496900,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 8,
+          "id": 1776335759752,
+          "price": 2496900,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 138,
+          "balcony": 34,
+          "category": "מיוחדת",
+          "floor": 8,
+          "id": 1776335761822,
+          "price": 4263000,
+          "rooms": 5,
+          "type": "יזם"
+        },
+        {
+          "area": 138,
+          "balcony": 34,
+          "category": "מיוחדת",
+          "floor": 8,
+          "id": 1776335780371,
+          "price": 4263000,
+          "rooms": 5,
+          "type": "יזם"
+        }
+      ],
+      "marketSqmPrice": 0,
+      "name": "משה שרת 26-28",
+      "p2080Percent": 10,
+      "salesData": [
+        5,
+        2,
+        0,
+        2,
+        2,
+        4,
+        2,
+        4,
+        4,
+        2,
+        4,
+        2,
+        2,
+        4,
+        2
+      ]
+    },
+    {
+      "address": "",
+      "budgetData": [
+        {
+          "color": "#3b82f6",
+          "id": 1,
+          "items": [
+            {
+              "id": "1-1",
+              "name": "מס רכישה",
+              "price": "6%",
+              "quantity": 0,
+              "total": 1723000,
+              "type": "percent"
+            },
+            {
+              "id": "1-2",
+              "name": "היטל השבחה",
+              "price": "אומדן",
+              "quantity": 0,
+              "total": 1200000,
+              "type": "lump"
+            },
+            {
+              "id": "1-3",
+              "name": "דיור חלופי לבעלי הדירות",
+              "price": 5600,
+              "quantity": 1008,
+              "total": 6048000,
+              "type": "per_unit"
+            },
+            {
+              "id": "1-4",
+              "name": "הובלה",
+              "price": 3500,
+              "quantity": 48,
+              "total": 224000,
+              "type": "per_unit"
+            },
+            {
+              "id": "2-4",
+              "name": "אגרות והיטלים לשטח עילי",
+              "price": 464,
+              "quantity": 6787,
+              "total": 4899840,
+              "type": "per_sqm"
+            },
+            {
+              "id": "2-5",
+              "name": "אגרות והיטלים לשטח תת קרקעי",
+              "price": 336,
+              "quantity": 2799,
+              "total": 1478400,
+              "type": "per_sqm"
+            },
+            {
+              "id": "2-6",
+              "name": "חב' חשמל - מגורים",
+              "price": 3750,
+              "quantity": 82,
+              "total": 307500,
+              "type": "per_unit"
+            },
+            {
+              "id": "2-2",
+              "name": "פיקוח מטעם הדיירים",
+              "price": 12000,
+              "quantity": 40,
+              "total": 400000,
+              "type": "per_unit"
+            },
+            {
+              "id": "1-5",
+              "name": "הוצאות ארגון דיירים",
+              "price": 0,
+              "quantity": 0,
+              "total": 0,
+              "type": "per_unit"
+            }
+          ],
+          "section": "קרקע + ייזום"
+        },
+        {
+          "color": "#10b981",
+          "id": 2,
+          "items": [
+            {
+              "id": "2-1",
+              "name": "תכנון וייעוץ",
+              "price": 32000,
+              "quantity": 82,
+              "total": 2460000,
+              "type": "per_unit"
+            },
+            {
+              "id": "2-3",
+              "name": "משפטיות",
+              "price": "2.00%",
+              "quantity": 168480000,
+              "total": 3369600,
+              "type": "percent"
+            },
+            {
+              "id": "2-8",
+              "name": "שיווק",
+              "price": 2,
+              "quantity": 168480000,
+              "total": 3369600,
+              "type": "percent"
+            },
+            {
+              "id": "2-7",
+              "name": "תקורה, ניהול ופיקוח",
+              "price": 20000,
+              "quantity": 84393200,
+              "total": 3375728,
+              "type": "percent"
+            },
+            {
+              "id": "2-9",
+              "name": "בלתי צפוי מראש",
+              "price": "5.00%",
+              "quantity": 0,
+              "total": 0,
+              "type": "percent"
+            },
+            {
+              "id": "2-11",
+              "name": "קרן אחזקה",
+              "price": 0,
+              "quantity": 0,
+              "total": 0,
+              "type": "per_unit"
+            },
+            {
+              "id": "2-12",
+              "name": "פיקוח הנדסי",
+              "price": 10000,
+              "quantity": 0,
+              "total": 0,
+              "type": "per_unit"
+            },
+            {
+              "id": "2-13",
+              "name": "פיקוח מטעם גוף מממן",
+              "price": 6000,
+              "quantity": 0,
+              "total": 0,
+              "type": "per_unit"
+            }
+          ],
+          "section": "פרק ב' - כלליות"
+        },
+        {
+          "color": "#f59e0b",
+          "id": 3,
+          "items": [
+            {
+              "id": "3-1",
+              "name": "הריסה ופינוי",
+              "price": 460,
+              "quantity": 1400,
+              "total": 1610000,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-2",
+              "name": "פיתוח חצר",
+              "price": 500,
+              "quantity": 1000,
+              "total": 1000000,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-3",
+              "name": "מרתפים",
+              "price": 3478,
+              "quantity": 2799,
+              "total": 15303200,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-4",
+              "name": "שטח עילי -מרקמי עד 10 קומות",
+              "price": 6000,
+              "quantity": 7200,
+              "total": 63360000,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-5",
+              "name": "מרפסות",
+              "price": 2500,
+              "quantity": 784,
+              "total": 2520000,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-6",
+              "name": "מרפסות גג",
+              "price": 1500,
+              "quantity": 203,
+              "total": 600000,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-7",
+              "name": "קומת עמודים מפולשת",
+              "price": 1000,
+              "quantity": 46,
+              "total": 0,
+              "type": "per_sqm"
+            },
+            {
+              "id": "3-8",
+              "name": "מטלה ציבורית",
+              "price": 1,
+              "quantity": 200000,
+              "total": 0,
+              "type": "per_sqm"
+            }
+          ],
+          "section": "פרק ג' - בנייה ישירה"
+        }
+      ],
+      "constructionMonths": 30,
+      "equityPercent": 15,
+      "financingPercent": 6,
+      "id": "p1776341162178",
+      "inventoryData": [
+        {
+          "area": 115,
+          "balcony": 60,
+          "category": "מיוחדת",
+          "floor": 0,
+          "id": 1776334389915,
+          "price": 3800000,
+          "rooms": 5,
+          "type": "יזם"
+        },
+        {
+          "area": 166,
+          "balcony": 68,
+          "category": "מיוחדת",
+          "floor": 0,
+          "id": 1776342112190,
+          "price": 4500000,
+          "rooms": 5,
+          "type": "יזם"
+        },
+        {
+          "area": 166,
+          "balcony": 68,
+          "category": "מיוחדת",
+          "floor": 0,
+          "id": 1776334829105,
+          "price": 4500000,
+          "rooms": 5,
+          "type": "יזם"
+        },
+        {
+          "area": 145,
+          "balcony": 70,
+          "category": "מיוחדת",
+          "floor": 0,
+          "id": 1776335045828,
+          "price": 4100000,
+          "rooms": 5,
+          "type": "יזם"
+        },
+        {
+          "area": 150,
+          "balcony": 12,
+          "category": "מיוחדת",
+          "floor": 1,
+          "id": 1776335090011,
+          "price": 3500000,
+          "rooms": 5,
+          "type": "יזם"
+        },
+        {
+          "area": 150,
+          "balcony": 12,
+          "category": "מיוחדת",
+          "floor": 1,
+          "id": 1776335381358,
+          "price": 3500000,
+          "rooms": 5,
+          "type": "יזם"
+        },
+        {
+          "area": 135,
+          "balcony": 12,
+          "category": "מיוחדת",
+          "floor": 1,
+          "id": 1776335385684,
+          "price": 3300000,
+          "rooms": 5,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 1,
+          "id": 1776335386076,
+          "price": 2354800,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 1,
+          "id": 1776335440234,
+          "price": 2354800,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 1,
+          "id": 1776335441735,
+          "price": 2354800,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 1,
+          "id": 1776335444658,
+          "price": 2151800,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 1,
+          "id": 1776335445468,
+          "price": 2151800,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 2,
+          "id": 1776335458988,
+          "price": 2172100,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 2,
+          "id": 1776335471193,
+          "price": 2172100,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 2,
+          "id": 1776335471605,
+          "price": 2172100,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 2,
+          "id": 1776335471995,
+          "price": 2172100,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 2,
+          "id": 1776335475011,
+          "price": 2375100,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 2,
+          "id": 1776335489562,
+          "price": 2375100,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 2,
+          "id": 1776335489810,
+          "price": 2375100,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 2,
+          "id": 1776335490126,
+          "price": 2375100,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 3,
+          "id": 1776335490509,
+          "price": 2395400,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 3,
+          "id": 1776335560556,
+          "price": 2395400,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 3,
+          "id": 1776335560961,
+          "price": 2395400,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 3,
+          "id": 1776335561350,
+          "price": 2395400,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 3,
+          "id": 1776335565957,
+          "price": 2192400,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 3,
+          "id": 1776335579562,
+          "price": 2192400,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 3,
+          "id": 1776335580127,
+          "price": 2192400,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 3,
+          "id": 1776335580562,
+          "price": 2192400,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 4,
+          "id": 1776335595039,
+          "price": 2415700,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 4,
+          "id": 1776335595377,
+          "price": 2415700,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 4,
+          "id": 1776335595887,
+          "price": 2415700,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 4,
+          "id": 1776335596240,
+          "price": 2415700,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 4,
+          "id": 1776335616403,
+          "price": 2212700,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 4,
+          "id": 1776335624405,
+          "price": 2212700,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 4,
+          "id": 1776335624736,
+          "price": 2212700,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 4,
+          "id": 1776335625089,
+          "price": 2212700,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 5,
+          "id": 1776335630907,
+          "price": 2436000,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 5,
+          "id": 1776335637325,
+          "price": 2436000,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 5,
+          "id": 1776335637506,
+          "price": 2436000,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 83,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 5,
+          "id": 1776335637685,
+          "price": 2436000,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 5,
+          "id": 1776335639589,
+          "price": 2233000,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 5,
+          "id": 1776335645586,
+          "price": 2233000,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 5,
+          "id": 1776335645745,
+          "price": 2233000,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 69,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 5,
+          "id": 1776335645940,
+          "price": 2233000,
+          "rooms": 3,
+          "type": "בעלים"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 6,
+          "id": 1776335669448,
+          "price": 2253300,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 6,
+          "id": 1776335682459,
+          "price": 2253300,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 6,
+          "id": 1776335682671,
+          "price": 2253300,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 6,
+          "id": 1776335682888,
+          "price": 2253300,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 6,
+          "id": 1776335690563,
+          "price": 2456300,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 6,
+          "id": 1776335707503,
+          "price": 2456300,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 6,
+          "id": 1776335707673,
+          "price": 2456300,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 6,
+          "id": 1776335707836,
+          "price": 2456300,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 7,
+          "id": 1776335715694,
+          "price": 2273600,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 7,
+          "id": 1776335722175,
+          "price": 2273600,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 7,
+          "id": 1776335722346,
+          "price": 2273600,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 7,
+          "id": 1776335722533,
+          "price": 2273600,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 7,
+          "id": 1776335723913,
+          "price": 2476600,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 7,
+          "id": 1776335730412,
+          "price": 2476600,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 7,
+          "id": 1776335730555,
+          "price": 2476600,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 7,
+          "id": 1776335730742,
+          "price": 2476600,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 72,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 8,
+          "id": 1776335749308,
+          "price": 2293900,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 86,
+          "balcony": 12,
+          "category": "טיפוסית",
+          "floor": 8,
+          "id": 1776335754018,
+          "price": 2496900,
+          "rooms": 3,
+          "type": "יזם"
+        },
+        {
+          "area": 138,
+          "balcony": 35,
+          "category": "מיוחדת",
+          "floor": 8,
+          "id": 1776335759752,
+          "price": 4263000,
+          "rooms": 5,
+          "type": "יזם"
+        },
+        {
+          "area": 138,
+          "balcony": 35,
+          "category": "מיוחדת",
+          "floor": 8,
+          "id": 1776335761822,
+          "price": 4263000,
+          "rooms": 5,
+          "type": "יזם"
+        },
+        {
+          "area": 138,
+          "balcony": 35,
+          "category": "מיוחדת",
+          "floor": 8,
+          "id": 1776341225094,
+          "price": 4567500,
+          "rooms": 5,
+          "type": "יזם"
+        }
+      ],
+      "marketSqmPrice": 0,
+      "name": "משה שרת דופלקסים",
+      "p2080Percent": 10,
+      "salesData": [
+        5,
+        2,
+        0,
+        2,
+        2,
+        4,
+        2,
+        4,
+        4,
+        2,
+        4,
+        2,
+        2,
+        4,
+        2
+      ]
+    }
+  ],
+  "updatedAt": "2026-04-16T12:44:21.279Z"
+}

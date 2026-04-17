@@ -79,7 +79,8 @@ body {
 .mono-number {
   font-family: 'JetBrains Mono', monospace;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
+  font-weight: 500;
 }
 
 /* --- Bento Grid System --- */
@@ -126,9 +127,10 @@ th {
 }
 
 td {
-  padding: 0.65rem 1rem;
+  padding: 0.4rem 0.6rem;
   border-bottom: 1px solid var(--border-subtle);
   color: var(--text-pri);
+  vertical-align: middle;
 }
 
 tr:hover td {
@@ -195,6 +197,15 @@ input {
 input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.1);
+}
+
+.compact-input {
+  padding: 0.25rem 0.4rem !important;
+  font-size: 0.8rem !important;
+}
+
+select.compact-input {
+  padding: 0.15rem 0.25rem !important;
 }
 
 button.primary {

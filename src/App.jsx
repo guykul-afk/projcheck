@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   PieChart, FileText, Save, Calculator, Building, 
-  Activity, ChevronDown, Plus, Trash, Info, List, MapPin, LogOut, BarChart2, TrendingUp, Copy
+  Activity, ChevronDown, Plus, Trash, Info, List, MapPin, LogOut, BarChart2, TrendingUp, Copy, Layers,
+  Zap, ShieldAlert, Loader
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -46,6 +47,7 @@ const INITIAL_INVENTORY = Array.from({ length: 12 }, (_, i) => ({
   id: i + 1,
   floor: Math.floor(i / 2) + 1,
   type: i < 6 ? 'יזם' : 'בעלים',
+  contractorSharePct: i < 6 ? 100 : 0,
   category: 'טיפוסית',
   rooms: (i % 3) + 3,
   area: 95 + (i * i * 2), // Slightly more varied areas
@@ -77,26 +79,40 @@ function computeInventoryStats(inventoryData) {
   const arr = inventoryData || [];
   const totalUnits = arr.length;
   if (totalUnits === 0) return { totalUnits:0, devUnits:0, ownerUnits:0, devUnitsPct:'0.0', totalArea:0, devArea:0, devAreaPct:'0.0', devValueInclVat:0, devValueExclVat:0, devValuePct:0, ownerValueInclVat:0, totalProjectValue:0, avgPricePerSqm:0 };
-  const devItems = arr.filter(a => a.type === 'יזם');
-  const ownerItems = arr.filter(a => a.type === 'בעלים');
-  const devUnits = devItems.length, ownerUnits = ownerItems.length;
-  const totalArea = arr.reduce((s,a) => s+a.area, 0);
-  const devArea = devItems.reduce((s,a) => s+a.area, 0);
-  const devValueInclVat = devItems.reduce((s,a) => s+a.price, 0);
-  const ownerValueInclVat = ownerItems.reduce((s,a) => s+a.price, 0);
-  const totalValue = devValueInclVat + ownerValueInclVat;
   
-  const specialDevItems = devItems.filter(a => a.category === 'מיוחדת');
-  const specialValueInclVat = specialDevItems.reduce((s,a) => s+a.price, 0);
-  const devValueExclVat = devValueInclVat / 1.17; // Using 17% as standard, but staying consistent with revenue if needed.
-  // wait, line 90 used 1.18. I will use 1.17 to be more accurate for Israel, but I should check if I should update line 90 too.
-  // I will update line 90 to 1.17 and use it here too.
+  const devUnits = arr.reduce((s, a) => s + (a.contractorSharePct || (a.type === 'יזם' ? 100 : 0)) / 100, 0);
+  const ownerUnits = totalUnits - devUnits;
   
+  const totalArea = arr.reduce((s, a) => s + a.area, 0);
+  const devArea = arr.reduce((s, a) => {
+    const share = a.contractorSharePct !== undefined ? a.contractorSharePct : (a.type === 'יזם' ? 100 : 0);
+    return s + (a.area * share / 100);
+  }, 0);
+  
+  const devValueInclVat = arr.reduce((s, a) => {
+    const share = a.contractorSharePct !== undefined ? a.contractorSharePct : (a.type === 'יזם' ? 100 : 0);
+    return s + (a.price * share / 100);
+  }, 0);
+  
+  const ownerValueInclVat = arr.reduce((s, a) => {
+    const share = a.contractorSharePct !== undefined ? a.contractorSharePct : (a.type === 'יזם' ? 100 : 0);
+    return s + (a.price * (100 - share) / 100);
+  }, 0);
+  
+  const totalValue = arr.reduce((s, a) => s + a.price, 0);
+  
+  const specialValueInclVat = arr.reduce((s, a) => {
+    if (a.category !== 'מיוחדת') return s;
+    const share = a.contractorSharePct !== undefined ? a.contractorSharePct : (a.type === 'יזם' ? 100 : 0);
+    return s + (a.price * share / 100);
+  }, 0);
+  
+  const devValueExclVat = devValueInclVat / 1.17;
   const specialValueExclVat = specialValueInclVat / 1.17;
   
   return {
     totalUnits, devUnits, ownerUnits, devUnitsPct:(devUnits/totalUnits*100).toFixed(1),
-    totalArea, devArea, devAreaPct:(devArea/totalArea*100).toFixed(1),
+    totalArea, devArea, devAreaPct:(totalArea > 0 ? (devArea/totalArea*100).toFixed(1) : 0),
     devValueInclVat, devValueExclVat,
     specialValueExclVat,
     specialValuePct: devValueExclVat > 0 ? (specialValueExclVat / devValueExclVat * 100).toFixed(1) : 0,
@@ -195,18 +211,45 @@ function buildMonthlyData(project, budStats, invStats) {
 
 // ─── Pure: Newton-Raphson IRR (monthly cashflows → annualized %) ───
 function calculateIRR(cashflows) {
-  if(!cashflows||cashflows.length<2)return null;
-  let r=0.008;
-  for(let i=0;i<150;i++){
-    let npv=0,dnpv=0;
-    cashflows.forEach((cf,t)=>{const d=Math.pow(1+r,t);npv+=cf/d;dnpv-=t*cf/(d*(1+r));});
-    if(Math.abs(dnpv)<1e-12)break;
-    const nr=r-npv/dnpv;
-    if(Math.abs(nr-r)<1e-7){r=nr;break;}
-    r=Math.max(-0.9,Math.min(5,nr));
+  if (!cashflows || cashflows.length < 2) return null;
+  // Ensure at least one positive and one negative cashflow
+  let hasPositive = false;
+  let hasNegative = false;
+  for (const val of cashflows) {
+    if (val > 0) hasPositive = true;
+    if (val < 0) hasNegative = true;
+    if (hasPositive && hasNegative) break;
   }
-  const a=(Math.pow(1+r,12)-1)*100;
-  return(isFinite(a)&&a>-99&&a<999)?a:null;
+  if (!hasPositive || !hasNegative) return null;
+
+  let r = 0.1; // Better starting guess for annualized IRRs
+  const maxIterations = 200;
+  const precision = 1e-7;
+
+  for (let i = 0; i < maxIterations; i++) {
+    let npv = 0;
+    let dnpv = 0;
+    for (let t = 0; t < cashflows.length; t++) {
+      const denom = Math.pow(1 + r, t);
+      npv += cashflows[t] / denom;
+      dnpv -= (t * cashflows[t]) / Math.pow(1 + r, t + 1);
+    }
+    
+    if (Math.abs(dnpv) < 1e-12) break;
+    const nextR = r - npv / dnpv;
+    if (Math.abs(nextR - r) < precision) {
+      r = nextR;
+      const annualized = (Math.pow(1 + r, 12) - 1) * 100;
+      return (isFinite(annualized) && annualized > -99 && annualized < 1000) ? annualized : null;
+    }
+    r = nextR;
+    // Safety bounds
+    if (r <= -1) r = -0.999999;
+    if (r > 10) r = 10;
+  }
+  
+  const finalAnnualized = (Math.pow(1 + r, 12) - 1) * 100;
+  return (isFinite(finalAnnualized) && finalAnnualized > -99 && finalAnnualized < 1000) ? finalAnnualized : null;
 }
 
 // ─── Pure: risk level from KPIs (Sage & Burnt Red) ───
@@ -229,18 +272,99 @@ function computeProjectKPIs(project) {
   const {irrCF,equityExposure,maxExposure,months}=buildMonthlyData(project,bud,inv);
   const irr=calculateIRR(irrCF);
   const risk=getProjectRisk(profitPct,annualRoe,irr);
-  return{totalCost,revenue,profit,profitPct,equity,roe,annualRoe,irr,risk,equityExposure,maxExposure,months,devUnits:inv.devUnits,totalUnits:inv.totalUnits,devArea:inv.devArea,constructionMonths:project.constructionMonths??24};
+
+  const ag = bud.finalSections.flatMap(s => s.items).find(i => i.id === '3-4')?.quantity || 0;
+  const ug = bud.finalSections.flatMap(s => s.items).find(i => i.id === '3-3')?.quantity || 0;
+  const planning = {
+    ag,
+    ug,
+    taa: inv.totalArea || 0,
+    daa: inv.devArea || 0,
+    totalEffAG: ag > 0 ? (inv.totalArea / ag) : 0,
+    devEffAG: ag > 0 ? (inv.devArea / ag) : 0,
+    totalEffTotal: (ag + ug) > 0 ? (inv.totalArea / (ag + ug)) : 0,
+    devEffTotal: (ag + ug) > 0 ? (inv.devArea / (ag + ug)) : 0
+  };
+
+  return{totalCost,revenue,profit,profitPct,equity,roe,annualRoe,irr,risk,equityExposure,maxExposure,months,devUnits:inv.devUnits,totalUnits:inv.totalUnits,devArea:inv.devArea,constructionMonths:project.constructionMonths??24,planning};
+}
+
+// ─── Pure: Monte Carlo Simulation Helpers ───
+function randomNormal(mean, stdDev) {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+  return z * stdDev + mean;
+}
+
+function runMonteCarlo(project, config) {
+  const { iterations, costVol, revVol, interestVol } = config;
+  const results = [];
+  
+  // Cache base values to speed up calculation
+  // We can simulate by perturbing the final stats directly if we make some assumptions,
+  // but for IRR accuracy we'll re-run the full logic.
+  
+  for (let i = 0; i < iterations; i++) {
+    const costMult = randomNormal(1, costVol / 100);
+    const revMult = randomNormal(1, revVol / 100);
+    const interestDelta = randomNormal(0, interestVol); // interestVol is in absolute percent (e.g. 1% deviation)
+
+    const perturbedProject = {
+      ...project,
+      financingPercent: Math.max(0, (project.financingPercent ?? 7) + interestDelta),
+      // To speed up, we don't map deep arrays if we can avoid it.
+      // But computeProjectKPIs expects these arrays.
+      budgetData: project.budgetData.map(sec => ({
+        ...sec,
+        items: sec.items.map(item => ({ ...item, total: item.total * costMult }))
+      })),
+      inventoryData: project.inventoryData.map(apt => ({
+        ...apt,
+        price: apt.price * revMult
+      }))
+    };
+
+    const kpis = computeProjectKPIs(perturbedProject);
+    results.push({
+      profit: kpis.profit,
+      roe: kpis.roe,
+      irr: kpis.irr || 0
+    });
+  }
+
+  // Calculate stats
+  const profits = results.map(r => r.profit).sort((a, b) => a - b);
+  const meanProfit = profits.reduce((a, b) => a + b, 0) / iterations;
+  const p5 = profits[Math.floor(iterations * 0.05)];
+  const p50 = profits[Math.floor(iterations * 0.5)];
+  const p95 = profits[Math.floor(iterations * 0.95)];
+  const probLoss = (profits.filter(p => p < 0).length / iterations) * 100;
+  
+  return {
+    raw: results,
+    stats: { meanProfit, p5, p50, p95, probLoss },
+    config
+  };
 }
 
 const App = () => {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('budget');
+  const [portfolioCompareMode, setPortfolioCompareMode] = useState('financial');
   const [runtimeError, setRuntimeError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hoveredMonth, setHoveredMonth] = useState(null);
   const [bulkAdjustmentPct, setBulkAdjustmentPct] = useState(1.0);
   
+  const [mcConfig, setMcConfig] = useState({ iterations: 1000, costVol: 5, revVol: 10, interestVol: 1 });
+  const [mcResults, setMcResults] = useState(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [portfolioMcResults, setPortfolioMcResults] = useState(null);
+  const [isPortfolioSimulating, setIsPortfolioSimulating] = useState(false);
+
   // Projects State
   const [projects, setProjects] = useState([createDefaultProject('p1', 'פרויקט ראשון')]);
   const [activeProjectId, setActiveProjectId] = useState('p1');
@@ -276,6 +400,16 @@ const App = () => {
         if (data.projects) setProjects(data.projects);
         if (data.activeProjectId) setActiveProjectId(data.activeProjectId);
         if (data.activeTab) setActiveTab(data.activeTab);
+      } else {
+        // Fallback to restored data from last test version
+        import('./RestoredData.json').then(module => {
+           const restored = module.default;
+           if (restored.projects) setProjects(restored.projects);
+           if (restored.activeProjectId) setActiveProjectId(restored.activeProjectId);
+           if (restored.activeTab) setActiveTab(restored.activeTab);
+        }).catch(err => {
+           console.error('Failed to load restored data:', err);
+        });
       }
     }).catch(console.error).finally(() => setIsLoading(false));
   }, [user]);
@@ -440,6 +574,34 @@ const App = () => {
     [projects]
   );
 
+  const portfolioSensitivityData = useMemo(() => {
+    const revSteps = [-10, -5, 0, 5, 10];
+    const costSteps = [-10, -5, 0, 5, 10];
+    const portProjects = projects.filter(p => p.includeInPortfolio !== false);
+    
+    return revSteps.map(revPct => {
+      return costSteps.map(costPct => {
+        let totalProfit = 0;
+        portProjects.forEach(project => {
+          const perturbed = {
+            ...project,
+            budgetData: project.budgetData.map(sec => ({
+              ...sec,
+              items: sec.items.map(item => ({ ...item, total: item.total * (1 + costPct / 100) }))
+            })),
+            inventoryData: project.inventoryData.map(apt => ({
+              ...apt,
+              price: apt.price * (1 + revPct / 100)
+            }))
+          };
+          const kpis = computeProjectKPIs(perturbed);
+          totalProfit += kpis.profit;
+        });
+        return totalProfit;
+      });
+    });
+  }, [projects]);
+
   // Cash Flow Calculations
   const cashFlowStats = useMemo(() => {
     if (!budgetStats?.finalSections) {
@@ -584,6 +746,24 @@ const App = () => {
       totalRevenueProjected: revCum 
     };
   }, [budgetStats, budgetData, equityPercent, constructionMonths, salesData, p2080Percent, inventoryStats]);
+  
+  const planningStats = useMemo(() => {
+    const ag = budgetStats.finalSections.flatMap(s => s.items).find(i => i.id === '3-4')?.quantity || 0;
+    const ug = budgetStats.finalSections.flatMap(s => s.items).find(i => i.id === '3-3')?.quantity || 0;
+    const taa = inventoryStats.totalArea || 0;
+    const daa = inventoryStats.devArea || 0;
+    
+    return {
+      aboveGroundArea: ag,
+      undergroundArea: ug,
+      totalApartmentArea: taa,
+      devApartmentArea: daa,
+      totalEfficiencyAG: ag > 0 ? (taa / ag) : 0,
+      devEfficiencyAG: ag > 0 ? (daa / ag) : 0,
+      totalEfficiencyTotal: (ag + ug) > 0 ? (taa / (ag + ug)) : 0,
+      devEfficiencyTotal: (ag + ug) > 0 ? (daa / (ag + ug)) : 0
+    };
+  }, [budgetStats, inventoryStats]);
 
   const handleBudgetChange = (sectionId, itemId, field, value) => {
     updateProject({
@@ -604,7 +784,21 @@ const App = () => {
 
   const handleInventoryChange = (id, field, value) => {
     updateProject({
-      inventoryData: inventoryData.map(apt => apt.id === id ? { ...apt, [field]: value } : apt)
+      inventoryData: inventoryData.map(apt => {
+        if (apt.id === id) {
+          let updates = { [field]: value };
+          if (field === 'type') {
+            updates.contractorSharePct = value === 'יזם' ? 100 : 0;
+          } else if (field === 'contractorSharePct') {
+            if (value === 100) updates.type = 'יזם';
+            else if (value === 0) updates.type = 'בעלים';
+            // otherwise keep existing type or maybe add a "Partial" type? 
+            // Better to just let the percentage drive everything.
+          }
+          return { ...apt, ...updates };
+        }
+        return apt;
+      })
     });
   };
 
@@ -632,6 +826,75 @@ const App = () => {
     if (activeProjectId === id) {
       setActiveProjectId(newProjects[0].id);
     }
+  };
+
+  const runProjectSimulation = () => {
+    setIsSimulating(true);
+    // Use setTimeout to ensure UI doesn't block immediately and allows loader to show
+    setTimeout(() => {
+      const results = runMonteCarlo(activeProject, mcConfig);
+      setMcResults(results);
+      setIsSimulating(false);
+    }, 50);
+  };
+
+  const runPortfolioSimulation = () => {
+    setIsPortfolioSimulating(true);
+    setTimeout(() => {
+      try {
+        const { iterations, costVol, revVol, interestVol } = mcConfig;
+        const results = [];
+        const portProjects = projects.filter(p => p.includeInPortfolio !== false);
+        
+        for (let i = 0; i < iterations; i++) {
+          const costMult = randomNormal(1, costVol / 100);
+          const revMult = randomNormal(1, revVol / 100);
+          const interestDelta = randomNormal(0, interestVol);
+
+          let totalProfit = 0;
+          let totalCost = 0;
+          let totalRevenue = 0;
+
+          portProjects.forEach(project => {
+            const perturbedProject = {
+              ...project,
+              financingPercent: Math.max(0, (project.financingPercent ?? 7) + interestDelta),
+              budgetData: project.budgetData.map(sec => ({
+                ...sec,
+                items: sec.items.map(item => ({ ...item, total: item.total * costMult }))
+              })),
+              inventoryData: project.inventoryData.map(apt => ({
+                ...apt,
+                price: apt.price * revMult
+              }))
+            };
+            const kpis = computeProjectKPIs(perturbedProject);
+            totalProfit += kpis.profit;
+            totalCost += kpis.totalCost;
+            totalRevenue += kpis.revenue;
+          });
+
+          results.push({ profit: totalProfit, cost: totalCost, revenue: totalRevenue });
+        }
+
+        const profits = results.map(r => r.profit).sort((a, b) => a - b);
+        const meanProfit = profits.reduce((a, b) => a + b, 0) / iterations;
+        const p5 = profits[Math.floor(iterations * 0.05)];
+        const p50 = profits[Math.floor(iterations * 0.5)];
+        const p95 = profits[Math.floor(iterations * 0.95)];
+        const probLoss = (profits.filter(p => p < 0).length / iterations) * 100;
+
+        setPortfolioMcResults({
+          raw: results,
+          stats: { meanProfit, p5, p50, p95, probLoss },
+          config: mcConfig
+        });
+      } catch (err) {
+        console.error("Portfolio simulation failed", err);
+      } finally {
+        setIsPortfolioSimulating(false);
+      }
+    }, 50);
   };
 
   const duplicateProject = (id, e) => {
@@ -722,104 +985,130 @@ const App = () => {
           >
             <List size={18} /> פורטפוליו
           </button>
-        </div>
-        
-        {/* Project Selector - Tactical Style */}
-        <div 
-          onClick={() => setActiveTab('budget')}
-          style={{ 
-            display: 'flex', 
-            background: 'var(--bg-surface)', 
-            padding: '4px', 
-            borderRadius: '12px', 
-            gap: '4px',
-            border: activeTab !== 'portfolio' ? '2px solid var(--accent)' : '1px solid var(--border-sharp)',
-            transition: 'all 0.2s',
-            opacity: activeTab === 'portfolio' ? 0.7 : 1
-          }}>
-          {projects.map(p => (
-            <div 
-              key={p.id}
-              onClick={() => setActiveProjectId(p.id)}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '2px',
-                cursor: 'pointer',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.2s',
-                background: p.id === activeProjectId ? 'var(--bg-elevated)' : 'transparent',
-                color: p.id === activeProjectId ? 'var(--accent)' : 'var(--text-sec)',
-                border: p.id === activeProjectId ? '1px solid var(--accent)' : '1px solid transparent'
-              }}
-            >
-              <input 
-                value={p.name} 
-                onChange={(e) => {
-                  const newName = e.target.value;
-                  setProjects(prev => prev.map(proj => proj.id === p.id ? { ...proj, name: newName } : proj));
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveTab('budget');
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'inherit',
-                  font: 'inherit',
-                  width: '140px',
-                  padding: 0,
-                  outline: 'none'
-                }}
-              />
-              <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginLeft: '4px' }}>
-                <button
-                  title={p.includeInPortfolio !== false ? "כלול בפורטפוליו" : "לא כלול בפורטפוליו"}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const val = p.includeInPortfolio === false;
-                    setProjects(prev => prev.map(proj => proj.id === p.id ? { ...proj, includeInPortfolio: val } : proj));
-                  }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', opacity: p.includeInPortfolio !== false ? 1 : 0.3 }}
-                >
-                  <Activity size={12} color={p.includeInPortfolio !== false ? 'var(--accent)' : 'var(--text-muted)'} />
-                </button>
-                <button
-                  title="שכפול פרויקט"
-                  onClick={(e) => duplicateProject(p.id, e)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', opacity: 0.5 }}
-                >
-                  <Copy size={12} />
-                </button>
-                {projects.length > 1 && (
-                  <button
-                    title="מחיקת פרויקט"
-                    onClick={(e) => deleteProject(p.id, e)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', opacity: 0.5 }}
-                  >
-                    <Trash size={12} />
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-          <button 
-            onClick={addNewProject}
+          
+          <button
+            onClick={() => {
+              import('./RestoredData.json').then(module => {
+                const restored = module.default;
+                if (restored.projects) setProjects(restored.projects);
+                if (restored.activeProjectId) setActiveProjectId(restored.activeProjectId);
+                if (restored.activeTab) setActiveTab(restored.activeTab);
+                alert('הנתונים שוחזרו בהצלחה!');
+              }).catch(err => alert('שגיאה בשחזור הנתונים: ' + err.message));
+            }}
             style={{
-              padding: '8px 12px',
-              borderRadius: '8px',
-              border: 'none',
-              background: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '0.6rem 1.2rem',
+              borderRadius: 'var(--radius-sharp)',
+              border: '1px solid var(--accent)',
+              background: 'rgba(88, 166, 255, 0.1)',
+              color: 'var(--accent)',
+              fontWeight: 600,
+              fontSize: '0.8rem',
               cursor: 'pointer',
-              color: 'var(--text-muted)'
+              transition: 'all 0.2s'
             }}
           >
-            <Plus size={18} />
+            <Calculator size={16} /> שחזר נתונים מגרסה קודמת
           </button>
+        </div>
+        
+        {/* Project Selector - Dropdown Style */}
+        <div 
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center',
+            background: 'var(--bg-surface)', 
+            padding: '8px 16px', 
+            borderRadius: 'var(--radius-sharp)', 
+            gap: '12px',
+            border: activeTab !== 'portfolio' ? '2px solid var(--accent)' : '1px solid var(--border-sharp)',
+            transition: 'all 0.2s',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>פרויקט:</span>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <select
+                value={activeProjectId}
+                onChange={(e) => {
+                  setActiveProjectId(e.target.value);
+                  if (activeTab === 'portfolio') setActiveTab('budget');
+                }}
+                style={{
+                  padding: '6px 32px 6px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-sharp)',
+                  background: 'var(--bg-canvas)',
+                  color: 'var(--text-pri)',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  appearance: 'none',
+                  cursor: 'pointer',
+                  minWidth: '200px',
+                  outline: 'none',
+                  textAlign: 'right'
+                }}
+              >
+                {projects.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} style={{ position: 'absolute', left: '8px', pointerEvents: 'none', opacity: 0.5 }} />
+            </div>
+          </div>
+
+          <div style={{ width: '1px', height: '20px', background: 'var(--border-sharp)' }} />
+
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button
+              title={activeProject?.includeInPortfolio !== false ? "כלול בפורטפוליו" : "לא כלול בפורטפוליו"}
+              onClick={() => {
+                const val = activeProject?.includeInPortfolio === false;
+                updateProject({ includeInPortfolio: val });
+              }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', transition: 'transform 0.2s', transform: activeProject?.includeInPortfolio !== false ? 'scale(1.1)' : 'scale(1)' }}
+            >
+              <Activity size={16} color={activeProject?.includeInPortfolio !== false ? 'var(--accent)' : 'var(--text-muted)'} />
+            </button>
+            <button
+              title="שכפול פרויקט"
+              onClick={(e) => duplicateProject(activeProjectId, e)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', opacity: 0.6 }}
+            >
+              <Copy size={16} />
+            </button>
+            {projects.length > 1 && (
+              <button
+                title="מחיקת פרויקט"
+                onClick={(e) => deleteProject(activeProjectId, e)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', opacity: 0.6 }}
+              >
+                <Trash size={16} />
+              </button>
+            )}
+            <button 
+              onClick={addNewProject}
+              title="הוספת פרויקט חדש"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '28px',
+                height: '28px',
+                borderRadius: '50%',
+                border: '1px dashed var(--border-sharp)',
+                background: 'var(--bg-canvas)',
+                cursor: 'pointer',
+                color: 'var(--accent)',
+                transition: 'all 0.2s'
+              }}
+            >
+              <Plus size={16} />
+            </button>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -884,6 +1173,9 @@ const App = () => {
           </div>
           <div className={`tab ${activeTab === 'cashflow' ? 'active' : ''}`} onClick={() => setActiveTab('cashflow')}>
             <TrendingUp size={14} style={{ marginLeft: '8px' }} /> תזרים
+          </div>
+          <div className={`tab ${activeTab === 'planning' ? 'active' : ''}`} onClick={() => setActiveTab('planning')}>
+            <Layers size={14} style={{ marginLeft: '8px' }} /> נתוני תכנון
           </div>
         </div>
       )}
@@ -1190,20 +1482,22 @@ const App = () => {
                     <Plus size={14} /> הוסף דירה
                   </button>
                 </div>
-                <div style={{ overflowX: 'auto' }}>
-                  <table>
+                <div style={{ overflowX: 'auto', background: 'var(--bg-canvas)', borderRadius: 'var(--radius-sharp)', border: '1px solid var(--border-sharp)' }}>
+                  <table style={{ width: 'max-content', borderCollapse: 'collapse', borderSpacing: 0 }}>
                     <thead>
-                      <tr>
-                        <th>מס'</th>
-                        <th>קומה</th>
-                        <th>סוג</th>
-                        <th>טיפוס</th>
-                        <th>חדרים</th>
-                        <th>שטח (מ"ר)</th>
-                        <th>מרפסת</th>
-                        <th>מחיר (₪)</th>
-                        <th>מחיר למ"ר</th>
-                        <th>פעולות</th>
+                      <tr style={{ background: 'var(--bg-elevated)', borderBottom: '2px solid var(--border-sharp)' }}>
+                        <th style={{ width: '35px', padding: '12px 4px', textAlign: 'center' }}>מס'</th>
+                        <th style={{ width: '45px', padding: '12px 4px', textAlign: 'center' }}>קומה</th>
+                        <th style={{ width: '65px', padding: '12px 4px', textAlign: 'center' }}>סוג</th>
+                        <th style={{ width: '90px', padding: '12px 4px', textAlign: 'center' }}>חלק %</th>
+                        <th style={{ width: '85px', padding: '12px 4px', textAlign: 'center' }}>טיפוס</th>
+                        <th style={{ width: '45px', padding: '12px 4px', textAlign: 'center' }}>חדרים</th>
+                        <th style={{ width: '75px', padding: '12px 4px', textAlign: 'center' }}>שטח</th>
+                        <th style={{ width: '80px', padding: '12px 4px', textAlign: 'center', color: 'var(--accent)', fontWeight: 800 }}>מרפסת</th>
+                        <th style={{ width: '95px', padding: '12px 4px', textAlign: 'center' }}>שטח קבלן</th>
+                        <th style={{ width: '120px', padding: '12px 4px', textAlign: 'center' }}>מחיר (₪)</th>
+                        <th style={{ width: '140px', padding: '12px 4px', textAlign: 'center' }}>שווי קבלן</th>
+                        <th style={{ width: '65px', padding: '12px 4px', textAlign: 'center' }}>פעולות</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1212,34 +1506,102 @@ const App = () => {
                         const isOwner = apt.type === 'בעלים';
                         return (
                           <tr key={apt.id} style={{ background: isOwner ? 'rgba(38, 70, 83, 0.04)' : undefined }}>
-                            <td className="mono-number" style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
-                            <td><input type="number" value={apt.floor} onChange={(e) => handleInventoryChange(apt.id, 'floor', Number(e.target.value))} style={{ width: '50px' }} /></td>
-                            <td>
+                            <td style={{ textAlign: 'center', padding: '6px 4px' }} className="mono-number">{idx + 1}</td>
+                            <td style={{ textAlign: 'center', padding: '6px 4px' }}>
+                              <input 
+                                type="number" 
+                                value={apt.floor} 
+                                onChange={(e) => handleInventoryChange(apt.id, 'floor', Number(e.target.value))} 
+                                className="compact-input" 
+                                style={{ width: '100%', textAlign: 'center', border: '1px solid transparent', background: 'transparent' }} 
+                              />
+                            </td>
+                            <td style={{ textAlign: 'center', padding: '6px 4px' }}>
                               <select 
                                 value={apt.type} 
                                 onChange={(e) => handleInventoryChange(apt.id, 'type', e.target.value)} 
-                                style={{ background: 'var(--bg-canvas)', color: 'var(--text-pri)', border: '1px solid var(--border-sharp)', padding: '2px 4px', fontSize: '0.85rem' }}
+                                className="compact-input"
+                                style={{ background: 'transparent', color: 'var(--text-pri)', border: '1px solid transparent', width: '100%', cursor: 'pointer' }}
                               >
                                 <option value="יזם">יזם</option>
                                 <option value="בעלים">בעלים</option>
                               </select>
                             </td>
-                            <td>
+                            <td style={{ textAlign: 'center', padding: '6px 4px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                                <input 
+                                  type="number" 
+                                  value={apt.contractorSharePct !== undefined ? apt.contractorSharePct : (apt.type === 'יזם' ? 100 : 0)} 
+                                  onChange={(e) => handleInventoryChange(apt.id, 'contractorSharePct', Number(e.target.value))} 
+                                  className="compact-input mono-number"
+                                  style={{ width: '55px', textAlign: 'center', fontWeight: 600, color: 'var(--accent)', border: '1px solid transparent', background: 'transparent', appearance: 'none', MozAppearance: 'textfield' }} 
+                                  min="0" max="100"
+                                />
+                                <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>%</span>
+                              </div>
+                            </td>
+                            <td style={{ textAlign: 'center', padding: '6px 4px' }}>
                               <select 
                                 value={apt.category || 'טיפוסית'} 
                                 onChange={(e) => handleInventoryChange(apt.id, 'category', e.target.value)} 
-                                style={{ background: 'var(--bg-canvas)', color: 'var(--text-pri)', border: '1px solid var(--border-sharp)', padding: '2px 4px', fontSize: '0.85rem', width: '90px' }}
+                                className="compact-input"
+                                style={{ background: 'transparent', color: 'var(--text-pri)', border: '1px solid transparent', width: '100%', cursor: 'pointer' }}
                               >
                                 <option value="טיפוסית">טיפוסית</option>
                                 <option value="מיוחדת">מיוחדת</option>
                                </select>
                             </td>
-                            <td><input type="number" value={apt.rooms} onChange={(e) => handleInventoryChange(apt.id, 'rooms', Number(e.target.value))} style={{ width: '50px' }} /></td>
-                            <td><input type="number" value={apt.area} onChange={(e) => handleInventoryChange(apt.id, 'area', Number(e.target.value))} className="mono-number" style={{ width: '80px' }} /></td>
-                            <td><input type="number" value={apt.balcony || 0} onChange={(e) => handleInventoryChange(apt.id, 'balcony', Number(e.target.value))} className="mono-number" style={{ width: '50px' }} /></td>
-                            <td><input type="number" value={apt.price} onChange={(e) => handleInventoryChange(apt.id, 'price', Number(e.target.value))} className="mono-number" style={{ width: '120px', fontWeight: 600, color: 'var(--accent)' }} /></td>
-                            <td className="mono-number" style={{ fontWeight: 600, color: 'var(--text-muted)' }}>₪{Math.round(projectSqmPrice).toLocaleString()}</td>
-                            <td style={{ display: 'flex', gap: '8px' }}>
+                            <td style={{ textAlign: 'center', padding: '6px 4px' }}>
+                              <input 
+                                type="number" 
+                                value={apt.rooms} 
+                                onChange={(e) => handleInventoryChange(apt.id, 'rooms', Number(e.target.value))} 
+                                className="compact-input" 
+                                style={{ width: '100%', textAlign: 'center', border: '1px solid transparent', background: 'transparent' }} 
+                              />
+                            </td>
+                            <td style={{ textAlign: 'center', padding: '6px 4px' }}>
+                              <input 
+                                type="number" 
+                                value={apt.area} 
+                                onChange={(e) => handleInventoryChange(apt.id, 'area', Number(e.target.value))} 
+                                className="compact-input mono-number" 
+                                style={{ width: '100%', textAlign: 'center', border: '1px solid transparent', background: 'transparent', fontWeight: 500 }} 
+                              />
+                            </td>
+                            <td style={{ textAlign: 'center', padding: '6px 4px' }}>
+                              <input 
+                                type="number" 
+                                value={apt.balcony || 0} 
+                                onChange={(e) => handleInventoryChange(apt.id, 'balcony', Number(e.target.value))} 
+                                className="compact-input mono-number" 
+                                style={{ 
+                                  width: '100%', 
+                                  textAlign: 'center', 
+                                  border: '1px solid var(--accent)', 
+                                  background: 'var(--bg-surface)',
+                                  fontWeight: 700,
+                                  color: 'var(--accent)',
+                                  boxShadow: '0 0 5px rgba(88, 166, 255, 0.1)'
+                                }} 
+                              />
+                            </td>
+                            <td className="mono-number" style={{ fontSize: '0.8rem', color: 'var(--text-sec)', textAlign: 'center', padding: '6px 4px' }}>
+                              {Math.round(apt.area * (apt.contractorSharePct !== undefined ? apt.contractorSharePct : (apt.type === 'יזם' ? 100 : 0)) / 100).toLocaleString()}
+                            </td>
+                            <td style={{ textAlign: 'center', padding: '6px 4px' }}>
+                              <input 
+                                type="number" 
+                                value={apt.price} 
+                                onChange={(e) => handleInventoryChange(apt.id, 'price', Number(e.target.value))} 
+                                className="compact-input mono-number" 
+                                style={{ width: '100%', fontWeight: 600, color: 'var(--text-pri)', textAlign: 'center', border: '1px solid transparent', background: 'transparent' }} 
+                              />
+                            </td>
+                            <td className="mono-number" style={{ fontWeight: 700, color: 'var(--success)', fontSize: '0.85rem', textAlign: 'center', padding: '6px 4px' }}>
+                              ₪{Math.round(apt.price * (apt.contractorSharePct !== undefined ? apt.contractorSharePct : (apt.type === 'יזם' ? 100 : 0)) / 100).toLocaleString()}
+                            </td>
+                            <td style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                               <button 
                                 onClick={() => {
                                   const newApt = { ...apt, id: Date.now() + idx };
@@ -1271,36 +1633,6 @@ const App = () => {
           ) : activeTab === 'profit' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div className="bento-grid">
-                <div className="tactical-card col-3">
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>סך תקבולים (נקי)</span>
-                  <div className="mono-number" style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0' }}>
-                    ₪{Math.round(inventoryStats.devValueExclVat).toLocaleString()}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>מבוסס על {inventoryStats.devUnits} יח"ד יזם</div>
-                </div>
-                <div className="tactical-card col-3">
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>עלויות פרויקט</span>
-                  <div className="mono-number" style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0' }}>
-                    ₪{budgetStats.grandTotal.toLocaleString()}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>כולל Capex ומימון</div>
-                </div>
-                <div className="tactical-card col-3" style={{ borderLeft: '2px solid var(--accent)' }}>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>רווח יזמי חזוי</span>
-                  <div className="mono-number success-text" style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0' }}>
-                    ₪{(Math.round(inventoryStats.devValueExclVat) - budgetStats.grandTotal).toLocaleString()}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>לפני מס חברות</div>
-                </div>
-                <div className="tactical-card col-3">
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>Margin (Cost)</span>
-                  <div className="mono-number success-text" style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0' }}>
-                    {((Math.round(inventoryStats.devValueExclVat) - budgetStats.grandTotal) / budgetStats.grandTotal * 100).toFixed(1)}%
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ROI על עלויות הקמה</div>
-                </div>
-
-                {/* Equity & Annual Returns Metrics - Integrated into Bento */}
                 {(() => {
                   const totalProfit = Math.round(inventoryStats.devValueExclVat) - budgetStats.grandTotal;
                   const equity = cashFlowStats.equityAmount;
@@ -1308,56 +1640,97 @@ const App = () => {
                   const years = (constructionMonths / 12) || 1;
                   const annualizedRoe = roe / years;
                   const equityMultiple = equity > 0 ? (totalProfit + equity) / equity : 0;
+                  const equityPercent = budgetStats.grandTotal > 0 ? Math.round((equity / budgetStats.grandTotal) * 100) : 0;
 
                   return (
                     <>
-                      <div className="tactical-card col-3" style={{ borderBottom: '2px solid var(--accent)' }}>
-                        <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>הון עצמי מושקע</span>
-                        <div className="mono-number success-text" style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.4rem 0' }}>₪{Math.round(equity).toLocaleString()}</div>
+                      {/* Row 1: Core Profit & Foundation */}
+                      <div className="tactical-card col-3">
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>Margin (Cost)</span>
+                        <div className="mono-number success-text" style={{ fontSize: '1.4rem', fontWeight: 700, margin: '0.4rem 0' }}>
+                          {((totalProfit / (budgetStats.grandTotal || 1)) * 100).toFixed(1)}%
+                        </div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>ROI על עלויות הקמה</div>
+                      </div>
+                      <div className="tactical-card col-3">
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>הון עצמי (Equity)</span>
+                        <div className="mono-number success-text" style={{ fontSize: '1.4rem', fontWeight: 700, margin: '0.4rem 0' }}>₪{Math.round(equity).toLocaleString()}</div>
                         <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{equityPercent}% מעלות הפרויקט</div>
                       </div>
-                      <div className="tactical-card col-3">
-                        <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>ROE פרויקטלי</span>
-                        <div className="mono-number" style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.4rem 0' }}>{roe.toFixed(1)}%</div>
-                      </div>
                       <div className="tactical-card col-3" style={{ borderBottom: '2px solid var(--accent)' }}>
-                        <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>תשואה שנתית</span>
-                        <div className="mono-number success-text" style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.4rem 0' }}>{annualizedRoe.toFixed(1)}%</div>
-                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Ann. ROE</div>
+                        <span 
+                          style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase', cursor: 'help' }}
+                          data-tooltip="שיעור התשואה הפנימי (Internal Rate of Return) - המדד המדויק ביותר לרווחיות הפרויקט הלוקח בחשבון את עיתוי זרימת המזומנים (Cash Flow Timing)."
+                        >
+                          IRR פרויקטלי <Info size={10} />
+                        </span>
+                        <div className="mono-number success-text" style={{ fontSize: '1.4rem', fontWeight: 700, margin: '0.4rem 0' }}>
+                          {cashFlowStats.irr ? `${cashFlowStats.irr.toFixed(1)}%` : '—'}
+                        </div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Internal Rate of Return</div>
                       </div>
                       <div className="tactical-card col-3">
-                        <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>Equity Multiple</span>
-                        <div className="mono-number" style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.4rem 0' }}>{equityMultiple.toFixed(2)}x</div>
+                        <span 
+                          style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase', cursor: 'help' }}
+                          data-tooltip="תשואה על ההון העצמי (Return on Equity) - היחס בין הרווח הנקי המצטבר לבין ההון העצמי שהושקע בפועל (ROI)."
+                        >
+                          ROE פרויקטלי <Info size={10} />
+                        </span>
+                        <div className="mono-number success-text" style={{ fontSize: '1.4rem', fontWeight: 700, margin: '0.4rem 0' }}>{roe.toFixed(1)}%</div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Return on Equity</div>
                       </div>
 
-                      {/* Unit Cost Metrics */}
-                      <div className="tactical-card col-3" style={{ background: 'var(--bg-canvas)' }}>
-                        <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>עלות לסך יח"ד</span>
-                        <div className="mono-number" style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.4rem 0' }}>
-                          ₪{Math.round(budgetStats.grandTotal / (inventoryStats.totalUnits || 1)).toLocaleString()}
-                        </div>
-                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>עלות כוללת / כלל הדירות</div>
+                      {/* Row 2: Performance Multiples & Unit Costs */}
+                      <div className="tactical-card col-3">
+                        <span 
+                          style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase', cursor: 'help' }}
+                          data-tooltip="תשואה שנתית (Annualized ROE) - ממוצע התשואה השנתית של ההון העצמי לאורך תקופת הבנייה. מאפשר השוואה לאפיקי השקעה אלטרנטיביים."
+                        >
+                          תשואה שנתית <Info size={10} />
+                        </span>
+                        <div className="mono-number success-text" style={{ fontSize: '1.3rem', fontWeight: 700, margin: '0.4rem 0' }}>{annualizedRoe.toFixed(1)}%</div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Annualized ROE</div>
                       </div>
-                      <div className="tactical-card col-3" style={{ background: 'var(--bg-canvas)' }}>
+                      <div className="tactical-card col-3">
+                        <span 
+                          style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase', cursor: 'help' }}
+                          data-tooltip="מכפיל הון (Equity Multiple) - היחס בין סך המזומן שמוחזר (קרן + רווח) לבין ההון שהושקע. (למשל: 1.5x אומר שהרווחת 50% על הכסף)."
+                        >
+                          Equity Multiple <Info size={10} />
+                        </span>
+                        <div className="mono-number" style={{ fontSize: '1.3rem', fontWeight: 700, margin: '0.4rem 0' }}>{equityMultiple.toFixed(2)}x</div>
+                      </div>
+                      <div className="tactical-card col-3">
                         <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>עלות ליח"ד יזם</span>
-                        <div className="mono-number" style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.4rem 0' }}>
+                        <div className="mono-number" style={{ fontSize: '1.3rem', fontWeight: 700, margin: '0.4rem 0' }}>
                           ₪{Math.round(budgetStats.grandTotal / (inventoryStats.devUnits || 1)).toLocaleString()}
                         </div>
-                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>עלות כוללת / דירות יזם</div>
                       </div>
-                      <div className="tactical-card col-3" style={{ background: 'var(--bg-canvas)' }}>
+                      <div className="tactical-card col-3">
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>עלות לסך יח"ד</span>
+                        <div className="mono-number" style={{ fontSize: '1.3rem', fontWeight: 700, margin: '0.4rem 0' }}>
+                          ₪{Math.round(budgetStats.grandTotal / (inventoryStats.totalUnits || 1)).toLocaleString()}
+                        </div>
+                      </div>
+
+                      {/* Row 3: Sqm Metrics */}
+                      <div className="tactical-card col-4" style={{ background: 'var(--bg-canvas)' }}>
                         <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>עלות למ"ר יזם</span>
                         <div className="mono-number" style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.4rem 0' }}>
                           ₪{Math.round(budgetStats.grandTotal / (inventoryStats.devArea || 1)).toLocaleString()}
                         </div>
-                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>עלות כוללת / מ"ר למכירה</div>
                       </div>
-                      <div className="tactical-card col-3" style={{ background: 'var(--bg-canvas)', borderRight: '2px solid var(--accent)' }}>
+                      <div className="tactical-card col-4" style={{ background: 'var(--bg-canvas)', borderRight: '2px solid var(--accent)' }}>
                         <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>הכנסה למ"ר יזם</span>
                         <div className="mono-number success-text" style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.4rem 0' }}>
                           ₪{Math.round(inventoryStats.devValueExclVat / (inventoryStats.devArea || 1)).toLocaleString()}
                         </div>
-                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>הכנסה ממוצעת / מ"ר למכירה</div>
+                      </div>
+                      <div className="tactical-card col-4" style={{ background: 'var(--bg-canvas)' }}>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>רווח למ"ר יזם</span>
+                        <div className="mono-number success-text" style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.4rem 0' }}>
+                          ₪{Math.round(totalProfit / (inventoryStats.devArea || 1)).toLocaleString()}
+                        </div>
                       </div>
                     </>
                   );
@@ -1400,6 +1773,160 @@ const App = () => {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              </div>
+
+              {/* Monte Carlo Simulation Section */}
+              <div className="table-container" style={{ marginTop: '1.5rem', border: '1px solid var(--border-sharp)', background: 'var(--bg-surface)' }}>
+                <div style={{ padding: '0.75rem 1rem', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-sharp)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <Activity size={18} color="var(--accent)" />
+                    <h3 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>ניתוח רגישות רב-משתנית (Monte Carlo)</h3>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button 
+                      onClick={runProjectSimulation}
+                      disabled={isSimulating}
+                      className="primary"
+                      style={{ fontSize: '0.75rem', padding: '0.4rem 1rem' }}
+                    >
+                      {isSimulating ? 'מחשב תרחישים...' : 'הרץ סימולציה (1,000 תרחישים)'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="bento-grid" style={{ padding: '1.5rem' }}>
+                  {/* MC Controls */}
+                  <div className="col-4" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderLeft: '1px solid var(--border-sharp)', paddingLeft: '1.5rem' }}>
+                    <h4 style={{ fontSize: '0.75rem', color: 'var(--text-sec)', marginBottom: '0.5rem' }}>הגדרת וולטיליות (סטיית תקן)</h4>
+                    
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>עלויות בניה</label>
+                        <span className="mono-number" style={{ fontSize: '0.75rem', fontWeight: 700 }}>{mcConfig.costVol}%</span>
+                      </div>
+                      <input 
+                        type="range" min="0" max="20" step="0.5" 
+                        value={mcConfig.costVol} 
+                        onChange={(e) => setMcConfig({...mcConfig, costVol: parseFloat(e.target.value)})}
+                        style={{ width: '100%', accentColor: 'var(--accent)' }}
+                      />
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>מחיר מכירה ממוצע</label>
+                        <span className="mono-number" style={{ fontSize: '0.75rem', fontWeight: 700 }}>{mcConfig.revVol}%</span>
+                      </div>
+                      <input 
+                        type="range" min="0" max="30" step="0.5" 
+                        value={mcConfig.revVol} 
+                        onChange={(e) => setMcConfig({...mcConfig, revVol: parseFloat(e.target.value)})}
+                        style={{ width: '100%', accentColor: 'var(--accent)' }}
+                      />
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>ריבית מימון (סטייה ב-%)</label>
+                        <span className="mono-number" style={{ fontSize: '0.75rem', fontWeight: 700 }}>{mcConfig.interestVol}%</span>
+                      </div>
+                      <input 
+                        type="range" min="0" max="5" step="0.1" 
+                        value={mcConfig.interestVol} 
+                        onChange={(e) => setMcConfig({...mcConfig, interestVol: parseFloat(e.target.value)})}
+                        style={{ width: '100%', accentColor: 'var(--accent)' }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* MC Results Visuals */}
+                  <div className="col-8">
+                    {!mcResults ? (
+                      <div style={{ height: '200px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-canvas)', borderRadius: 'var(--radius-sharp)', border: '1px dashed var(--border-sharp)', color: 'var(--text-muted)' }}>
+                        <BarChart2 size={32} style={{ marginBottom: '1rem', opacity: 0.3 }} />
+                        <p style={{ fontSize: '0.85rem' }}>לחץ על "הרץ סימולציה" כדי לראות את התפלגות הרווחיות</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        {/* Histogram SVG */}
+                        <div style={{ background: 'var(--bg-canvas)', padding: '1rem', borderRadius: 'var(--radius-sharp)', border: '1px solid var(--border-sharp)' }}>
+                          <h4 style={{ fontSize: '0.7rem', color: 'var(--text-sec)', marginBottom: '1rem', textAlign: 'center' }}>התפלגות רווח יזמי חזוי (₪)</h4>
+                          <div style={{ height: '140px', width: '100%', display: 'flex', alignItems: 'flex-end', gap: '2px' }}>
+                            {(() => {
+                              const profits = mcResults.raw.map(r => r.profit);
+                              const min = Math.min(...profits);
+                              const max = Math.max(...profits);
+                              const binCount = 40;
+                              const binWidth = (max - min) / binCount;
+                              const bins = Array(binCount).fill(0);
+                              
+                              profits.forEach(p => {
+                                const binIdx = Math.min(binCount - 1, Math.floor((p - min) / binWidth));
+                                bins[binIdx]++;
+                              });
+                              
+                              const maxBin = Math.max(...bins);
+                              const currentProfit = Math.round(inventoryStats.devValueExclVat) - budgetStats.grandTotal;
+
+                              return bins.map((count, i) => {
+                                const binCenter = min + (i + 0.5) * binWidth;
+                                const height = (count / maxBin) * 100;
+                                const isPositive = binCenter > 0;
+                                const isBaseline = Math.abs(binCenter - currentProfit) < binWidth;
+
+                                return (
+                                  <div 
+                                    key={i} 
+                                    title={`רווח: ₪${Math.round(binCenter).toLocaleString()}\nשכיחות: ${count}`}
+                                    style={{ 
+                                      flex: 1, 
+                                      height: `${height}%`, 
+                                      background: isBaseline ? 'var(--accent)' : (isPositive ? 'var(--success)' : 'var(--danger)'),
+                                      opacity: isBaseline ? 1 : 0.6,
+                                      borderRadius: '1px 1px 0 0'
+                                    }} 
+                                  />
+                                );
+                              });
+                            })()}
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', fontSize: '0.6rem', color: 'var(--text-muted)' }}>
+                            <span className="mono-number">₪{Math.round(Math.min(...mcResults.raw.map(r=>r.profit))).toLocaleString()}</span>
+                            <span className="mono-number">₪{Math.round(Math.max(...mcResults.raw.map(r=>r.profit))).toLocaleString()}</span>
+                          </div>
+                        </div>
+
+                        {/* Summary Stats Grid */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+                          <div className="tactical-card" style={{ padding: '0.75rem', textAlign: 'center' }}>
+                            <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>רווח ממוצע (Mean)</span>
+                            <div className="mono-number" style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-pri)' }}>
+                              ₪{Math.round(mcResults.stats.meanProfit).toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="tactical-card" style={{ padding: '0.75rem', textAlign: 'center' }}>
+                            <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>הסתברות להפסד</span>
+                            <div className="mono-number" style={{ fontSize: '0.9rem', fontWeight: 700, color: mcResults.stats.probLoss > 10 ? 'var(--danger)' : 'var(--success)' }}>
+                              {mcResults.stats.probLoss.toFixed(1)}%
+                            </div>
+                          </div>
+                          <div className="tactical-card" style={{ padding: '0.75rem', textAlign: 'center' }}>
+                            <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>Worst Case (P5)</span>
+                            <div className="mono-number" style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--danger)' }}>
+                              ₪{Math.round(mcResults.stats.p5).toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="tactical-card" style={{ padding: '0.75rem', textAlign: 'center' }}>
+                            <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>Median (P50)</span>
+                            <div className="mono-number" style={{ fontSize: '0.9rem', fontWeight: 700 }}>
+                              ₪{Math.round(mcResults.stats.p50).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1813,6 +2340,63 @@ const App = () => {
                 </div>
               </div>
             </div>
+          ) : activeTab === 'planning' ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div className="bento-grid">
+                <div className="tactical-card col-3">
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>סה"כ שטח עילי</span>
+                  <div className="mono-number" style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0' }}>{planningStats.aboveGroundArea.toLocaleString()}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>מתוך תקציב (סעיף 3-4)</div>
+                </div>
+                <div className="tactical-card col-3">
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>סה"כ שטח תת קרקעי</span>
+                  <div className="mono-number" style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0' }}>{planningStats.undergroundArea.toLocaleString()}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>מתוך תקציב (סעיף 3-3)</div>
+                </div>
+                <div className="tactical-card col-3">
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>סה"כ שטחי דירות</span>
+                  <div className="mono-number" style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0' }}>{planningStats.totalApartmentArea.toLocaleString()}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>סיכום כלל הדירות (נטו)</div>
+                </div>
+                <div className="tactical-card col-3">
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>שטחי דירות יזם</span>
+                  <div className="mono-number" style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0' }}>{planningStats.devApartmentArea.toLocaleString()}</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>סיכום דירות יזם בלבד (נטו)</div>
+                </div>
+
+                <div className="tactical-card col-6" style={{ borderLeft: '3px solid var(--accent)' }}>
+                  <h3 style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '1.5rem', color: 'var(--text-sec)' }}>יחס שטחים לשטח עילי (Gross vs Net)</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                    <div>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>יחס סה"כ דירות לשטח עילי</span>
+                      <div className="mono-number" style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--accent)' }}>{(planningStats.totalEfficiencyAG * 100).toFixed(1)}%</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>יעילות פרויקטאלית כוללת</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>יחס דירות יזם לשטח עילי</span>
+                      <div className="mono-number" style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--accent)' }}>{(planningStats.devEfficiencyAG * 100).toFixed(1)}%</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>אחוז שגשוג (שטח מכיר) מעל הקרקע</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="tactical-card col-6" style={{ borderLeft: '3px solid var(--success)' }}>
+                  <h3 style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '1.5rem', color: 'var(--text-sec)' }}>יחס שטחים לסה"כ שטח בניה</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                    <div>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>יחס סה"כ דירות לכלל הבניה</span>
+                      <div className="mono-number" style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--success)' }}>{(planningStats.totalEfficiencyTotal * 100).toFixed(1)}%</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>יחס נטו/ברוטו כולל פרויקט</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>יחס דירות יזם לכלל הבניה</span>
+                      <div className="mono-number" style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--success)' }}>{(planningStats.devEfficiencyTotal * 100).toFixed(1)}%</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>ניצולת מכירה מכלל המעטפת</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : activeTab === 'portfolio' ? (
               <div style={{ display:'flex', flexDirection:'column', gap:'1.5rem' }}>
                 {/* Portfolio Summary Dashboard */}
@@ -1850,7 +2434,12 @@ const App = () => {
                           <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{(tE/tC*100).toFixed(0)}% מינוף פורטפוליו.</div>
                         </div>
                         <div className="tactical-card col-3">
-                          <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>IRR פורטפוליו ממוצע</span>
+                          <span 
+                            style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}
+                            data-tooltip="שיעור התשואה הפנימי הממוצע של כלל הפרויקטים (Internal Rate of Return). המדד המרכזי שבוחן את רווחיות הפורטפוליו לאורך זמן וביחס לסיכון."
+                          >
+                            IRR פורטפוליו <Info size={10} />
+                          </span>
                           <div className="mono-number success-text" style={{ fontSize: '1.4rem', fontWeight: 700, margin: '0.4rem 0' }}>{avgIRR ? avgIRR.toFixed(1)+'%' : 'N/A'}</div>
                           <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>יעד מנהלים: {'>'}18%.</div>
                         </div>
@@ -1862,7 +2451,43 @@ const App = () => {
                 {/* Project Comparison Console */}
                 <div className="table-container">
                   <div style={{ padding: '0.75rem 1rem', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-sharp)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>מטריצת השוואת פורטפוליו</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <h3 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>מטריצת השוואת פורטפוליו</h3>
+                      <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-canvas)', padding: '2px', borderRadius: '6px', border: '1px solid var(--border-sharp)' }}>
+                        <button 
+                          onClick={() => setPortfolioCompareMode('financial')}
+                          style={{
+                            padding: '4px 10px',
+                            fontSize: '0.6rem',
+                            fontWeight: 700,
+                            borderRadius: '4px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            background: portfolioCompareMode === 'financial' ? 'var(--accent)' : 'transparent',
+                            color: portfolioCompareMode === 'financial' ? '#fff' : 'var(--text-sec)',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          כלכלי
+                        </button>
+                        <button 
+                          onClick={() => setPortfolioCompareMode('planning')}
+                          style={{
+                            padding: '4px 10px',
+                            fontSize: '0.6rem',
+                            fontWeight: 700,
+                            borderRadius: '4px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            background: portfolioCompareMode === 'planning' ? 'var(--accent)' : 'transparent',
+                            color: portfolioCompareMode === 'planning' ? '#fff' : 'var(--text-sec)',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          תכנוני
+                        </button>
+                      </div>
+                    </div>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>N = {projects.length} פרויקטים</div>
                   </div>
                   <div style={{ overflowX:'auto' }}>
@@ -1870,16 +2495,41 @@ const App = () => {
                       <thead>
                         <tr style={{ background:'var(--bg-canvas)', color:'var(--text-sec)', fontSize:'0.65rem', textTransform:'uppercase' }}>
                           <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>פרויקט</th>
-                          <th style={{ padding:'10px 16px', textAlign:'center', borderBottom:'1px solid var(--border-sharp)' }}>יחידות</th>
-                          <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>עלות</th>
-                          <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)', fontSize:'0.55rem', opacity:0.8 }}>הוצ/מ"ר</th>
-                          <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>הכנסה</th>
-                          <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)', fontSize:'0.55rem', opacity:0.8 }}>הכנסה/מ"ר</th>
-                          <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>רווח</th>
-                          <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>רווחיות</th>
-                          <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>הון עצמי</th>
-                          <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>ROE</th>
-                          <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>IRR</th>
+                          {portfolioCompareMode === 'financial' ? (
+                            <>
+                              <th style={{ padding:'10px 16px', textAlign:'center', borderBottom:'1px solid var(--border-sharp)' }}>יח' (יזם)</th>
+                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>עלות</th>
+                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)', fontSize:'0.55rem', opacity:0.8 }}>הוצ/מ"ר</th>
+                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>הכנסה</th>
+                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)', fontSize:'0.55rem', opacity:0.8 }}>הכנסה/מ"ר</th>
+                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>רווח</th>
+                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>רווחיות</th>
+                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>הון עצמי</th>
+                              <th 
+                                style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}
+                                data-tooltip="ROE (Return on Equity): היחס בין הרווח הנקי להון העצמי שהושקע."
+                              >
+                                ROE <Info size={10} />
+                              </th>
+                              <th 
+                                style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}
+                                data-tooltip="IRR (Internal Rate of Return): שיעור התשואה השנתי הממוצע של הפרויקט בהתבסס על תזרימי המזומנים."
+                              >
+                                IRR <Info size={10} />
+                              </th>
+                            </>
+                          ) : (
+                            <>
+                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>שטח עילי (מ"ר)</th>
+                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>תת-קרקעי</th>
+                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>שטח דירות</th>
+                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>שטח יזם</th>
+                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>יעילות עילי</th>
+                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>יעילות יזם/עילי</th>
+                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>יעילות פרויקט</th>
+                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>יעילות יזם</th>
+                            </>
+                          )}
                         </tr>
                       </thead>
                       <tbody className="tactical-table">
@@ -1898,20 +2548,35 @@ const App = () => {
                                   <span style={{ fontWeight: 700 }}>{kpi.name}</span>
                                 </div>
                               </td>
-                              <td className="mono-number" style={{ padding:'12px 16px', textAlign:'center' }}>{kpi.devUnits||kpi.totalUnits}</td>
-                              <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right' }}>{fmtM(kpi.totalCost)}</td>
-                              <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', fontSize:'0.75rem', color:'var(--text-muted)' }}>{kpi.devArea > 0 ? Math.round(kpi.totalCost / kpi.devArea).toLocaleString() : '—'}</td>
-                              <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', color:'var(--accent)' }}>{fmtM(kpi.revenue)}</td>
-                              <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', fontSize:'0.75rem', color:'var(--text-muted)' }}>{kpi.devArea > 0 ? Math.round(kpi.revenue / kpi.devArea).toLocaleString() : '—'}</td>
-                              <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', fontWeight:700, color: kpi.profit >= 0 ? 'var(--accent)' : 'var(--danger)' }}>{fmtM(kpi.profit)}</td>
-                              <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right' }}>
-                                <span style={{ padding: '2px 6px', borderRadius: '4px', background: kpi.profitPct >= 20 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: kpi.profitPct >= 20 ? 'var(--accent)' : 'var(--danger)' }}>
-                                  {kpi.profitPct.toFixed(1)}%
-                                </span>
-                              </td>
-                              <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right' }}>{fmtM(kpi.equity)}</td>
-                              <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', fontWeight: 700 }}>{kpi.annualRoe.toFixed(1)}%</td>
-                              <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', color: 'var(--accent)', fontWeight: 800 }}>{kpi.irr != null ? kpi.irr.toFixed(1) + '%' : '—'}</td>
+                              {portfolioCompareMode === 'financial' ? (
+                                <>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'center' }}>{kpi.totalUnits} ({Math.round(kpi.devUnits)})</td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right' }}>{fmtM(kpi.totalCost)}</td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', fontSize:'0.75rem', color:'var(--text-muted)' }}>{kpi.devArea > 0 ? Math.round(kpi.totalCost / kpi.devArea).toLocaleString() : '—'}</td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', color:'var(--accent)' }}>{fmtM(kpi.revenue)}</td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', fontSize:'0.75rem', color:'var(--text-muted)' }}>{kpi.devArea > 0 ? Math.round(kpi.revenue / kpi.devArea).toLocaleString() : '—'}</td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', fontWeight:700, color: kpi.profit >= 0 ? 'var(--accent)' : 'var(--danger)' }}>{fmtM(kpi.profit)}</td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right' }}>
+                                    <span style={{ padding: '2px 6px', borderRadius: '4px', background: kpi.profitPct >= 20 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: kpi.profitPct >= 20 ? 'var(--accent)' : 'var(--danger)' }}>
+                                      {kpi.profitPct.toFixed(1)}%
+                                    </span>
+                                  </td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right' }}>{fmtM(kpi.equity)}</td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', fontWeight: 700 }}>{kpi.annualRoe.toFixed(1)}%</td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', color: 'var(--accent)', fontWeight: 800 }}>{kpi.irr != null ? kpi.irr.toFixed(1) + '%' : '—'}</td>
+                                </>
+                              ) : (
+                                <>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right' }}>{kpi.planning.ag.toLocaleString()}</td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right' }}>{kpi.planning.ug.toLocaleString()}</td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right' }}>{kpi.planning.taa.toLocaleString()}</td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', color:'var(--accent)' }}>{kpi.planning.daa.toLocaleString()}</td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right' }}>{(kpi.planning.totalEffAG * 100).toFixed(1)}%</td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', fontWeight:700, color:'var(--accent)' }}>{(kpi.planning.devEffAG * 100).toFixed(1)}%</td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right' }}>{(kpi.planning.totalEffTotal * 100).toFixed(1)}%</td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', fontWeight:700 }}>{(kpi.planning.devEffTotal * 100).toFixed(1)}%</td>
+                                </>
+                              )}
                             </tr>
                           );
                         })}
@@ -1919,24 +2584,208 @@ const App = () => {
                       <tfoot>
                         <tr style={{ background:'var(--bg-canvas)', fontWeight:800, color:'var(--text-pri)' }}>
                           <td style={{ padding:'12px 16px' }}>סה"כ פורטפוליו</td>
-                          <td></td>
-                          <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.totalCost,0); return (t/1e6).toFixed(1)+'M'; })()}</td>
-                          <td className="mono-number" style={{ textAlign:'right', fontSize:'0.75rem', color:'var(--text-muted)' }}>{(()=> { const tC=allProjectsKPIs.reduce((s,p)=>s+p.totalCost,0); const tA=allProjectsKPIs.reduce((s,p)=>s+p.devArea,0); return tA > 0 ? Math.round(tC/tA).toLocaleString() : '—'; })()}</td>
-                          <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.revenue,0); return (t/1e6).toFixed(1)+'M'; })()}</td>
-                          <td className="mono-number" style={{ textAlign:'right', fontSize:'0.75rem', color:'var(--text-muted)' }}>{(()=> { const tR=allProjectsKPIs.reduce((s,p)=>s+p.revenue,0); const tA=allProjectsKPIs.reduce((s,p)=>s+p.devArea,0); return tA > 0 ? Math.round(tR/tA).toLocaleString() : '—'; })()}</td>
-                          <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.profit,0); return (t/1e6).toFixed(1)+'M'; })()}</td>
-                          <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const tC=allProjectsKPIs.reduce((s,p)=>s+p.totalCost,0); const tP=allProjectsKPIs.reduce((s,p)=>s+p.profit,0); return (tP/tC*100).toFixed(1)+'%'; })()}</td>
-                          <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.equity,0); return (t/1e6).toFixed(1)+'M'; })()}</td>
-                          <td colSpan={2}></td>
+                          {portfolioCompareMode === 'financial' ? (
+                            <>
+                              <td></td>
+                              <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.totalCost,0); return (t/1e6).toFixed(1)+'M'; })()}</td>
+                              <td className="mono-number" style={{ textAlign:'right', fontSize:'0.75rem', color:'var(--text-muted)' }}>{(()=> { const tC=allProjectsKPIs.reduce((s,p)=>s+p.totalCost,0); const tA=allProjectsKPIs.reduce((s,p)=>s+p.devArea,0); return tA > 0 ? Math.round(tC/tA).toLocaleString() : '—'; })()}</td>
+                              <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.revenue,0); return (t/1e6).toFixed(1)+'M'; })()}</td>
+                              <td className="mono-number" style={{ textAlign:'right', fontSize:'0.75rem', color:'var(--text-muted)' }}>{(()=> { const tR=allProjectsKPIs.reduce((s,p)=>s+p.revenue,0); const tA=allProjectsKPIs.reduce((s,p)=>s+p.devArea,0); return tA > 0 ? Math.round(tR/tA).toLocaleString() : '—'; })()}</td>
+                              <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.profit,0); return (t/1e6).toFixed(1)+'M'; })()}</td>
+                              <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const tC=allProjectsKPIs.reduce((s,p)=>s+p.totalCost,0); const tP=allProjectsKPIs.reduce((s,p)=>s+p.profit,0); return (tP/tC*100).toFixed(1)+'%'; })()}</td>
+                              <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.equity,0); return (t/1e6).toFixed(1)+'M'; })()}</td>
+                              <td colSpan={2}></td>
+                            </>
+                          ) : (
+                            <>
+                              <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.planning.ag,0); return t.toLocaleString(); })()}</td>
+                              <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.planning.ug,0); return t.toLocaleString(); })()}</td>
+                              <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.planning.taa,0); return t.toLocaleString(); })()}</td>
+                              <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.planning.daa,0); return t.toLocaleString(); })()}</td>
+                              <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { 
+                                const tAG=allProjectsKPIs.reduce((s,p)=>s+p.planning.ag,0); 
+                                const tTAA=allProjectsKPIs.reduce((s,p)=>s+p.planning.taa,0); 
+                                return tAG > 0 ? (tTAA/tAG*100).toFixed(1)+'%' : '—'; 
+                              })()}</td>
+                              <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { 
+                                const tAG=allProjectsKPIs.reduce((s,p)=>s+p.planning.ag,0); 
+                                const tDAA=allProjectsKPIs.reduce((s,p)=>s+p.planning.daa,0); 
+                                return tAG > 0 ? (tDAA/tAG*100).toFixed(1)+'%' : '—'; 
+                              })()}</td>
+                              <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { 
+                                const tAG=allProjectsKPIs.reduce((s,p)=>s+p.planning.ag,0); 
+                                const tUG=allProjectsKPIs.reduce((s,p)=>s+p.planning.ug,0); 
+                                const tTAA=allProjectsKPIs.reduce((s,p)=>s+p.planning.taa,0); 
+                                return (tAG+tUG) > 0 ? (tTAA/(tAG+tUG)*100).toFixed(1)+'%' : '—'; 
+                              })()}</td>
+                              <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { 
+                                const tAG=allProjectsKPIs.reduce((s,p)=>s+p.planning.ag,0); 
+                                const tUG=allProjectsKPIs.reduce((s,p)=>s+p.planning.ug,0); 
+                                const tDAA=allProjectsKPIs.reduce((s,p)=>s+p.planning.daa,0); 
+                                return (tAG+tUG) > 0 ? (tDAA/(tAG+tUG)*100).toFixed(1)+'%' : '—'; 
+                              })()}</td>
+                            </>
+                          )}
                         </tr>
                       </tfoot>
                     </table>
                   </div>
                 </div>
 
-                {/* Portfolio Equity Exposure - Removed per user request */}
+                {/* Portfolio Risk & Sensitivity Analysis */}
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1.5rem', marginTop: '1rem' }}>
+                  {/* Portfolio Sensitivity Matrix Row */}
+                  <div className="tactical-card" style={{ padding: '1.5rem', background: 'var(--bg-elevated)' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:'1.5rem' }}>
+                      <div>
+                        <h3 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>מטריצת רגישות פורטפוליו (Aggregated)</h3>
+                        <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>השפעת שינויי שוק גלובליים על הרווח הכולל (מיליוני ש"ח)</p>
+                      </div>
+                      <div style={{ fontSize: '0.65rem', background:'var(--bg-canvas)', padding:'4px 8px', borderRadius:'4px', border:'1px solid var(--border-sharp)', display:'flex', gap:'8px' }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:'4px' }}><div style={{ width:8, height:8, background:'var(--accent)', borderRadius:2 }}/> רווח</div>
+                        <div style={{ display:'flex', alignItems:'center', gap:'4px' }}><div style={{ width:8, height:8, background:'var(--danger)', borderRadius:2 }}/> הפסד</div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '4px', textAlign: 'center' }}>
+                      {/* Matrix Header (Columns - Cost) */}
+                      <div />
+                      {[-10, -5, 0, 5, 10].map(c => (
+                        <div key={c} style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-sec)', paddingBottom: '8px' }}>
+                          עלות {c > 0 ? '+' : ''}{c}%
+                        </div>
+                      ))}
+
+                      {/* Matrix Rows (Revenue) */}
+                      {[-10, -5, 0, 5, 10].map((r, rIdx) => (
+                        <React.Fragment key={rIdx}>
+                          <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-sec)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: '8px' }}>
+                            הכנסה {r > 0 ? '+' : ''}{r}%
+                          </div>
+                          {portfolioSensitivityData[rIdx].map((profit, cIdx) => {
+                            const valM = profit / 1e6;
+                            const isLoss = valM < 0;
+                            const baseProfit = portfolioSensitivityData[2][2];
+                            const ratio = profit / (Math.abs(baseProfit) || 1);
+                            const opacity = Math.min(1, Math.max(0.1, Math.abs(ratio) * 0.5));
+                            
+                            return (
+                              <div 
+                                key={cIdx} 
+                                style={{ 
+                                  background: isLoss ? `rgba(239, 68, 68, ${opacity})` : `rgba(16, 185, 129, ${opacity})`,
+                                  color: '#fff',
+                                  padding: '12px 4px',
+                                  borderRadius: '4px',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 800,
+                                  border: r === 0 && ([-10, -5, 0, 5, 10])[cIdx] === 0 ? '2px solid #fff' : 'none',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  position: 'relative'
+                                }}
+                              >
+                                {valM.toFixed(1)}M
+                                {r === 0 && ([-10, -5, 0, 5, 10])[cIdx] === 0 && (
+                                  <div style={{ position:'absolute', top:-12, fontSize:'0.5rem', fontWeight:400, color:'var(--text-muted)' }}>PROJECTED</div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Portfolio Monte Carlo Simulation UI */}
+                  <div className="tactical-card" style={{ padding: '1.5rem', background: 'var(--bg-elevated)' }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.5rem' }}>
+                      <h3 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>סימולציית מונטה-קרלו (פורטפוליו)</h3>
+                      <button 
+                        onClick={runPortfolioSimulation}
+                        disabled={isPortfolioSimulating}
+                        className="tactical-button"
+                        style={{ padding: '6px 14px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem' }}
+                      >
+                        {isPortfolioSimulating ? <Loader size={12} className="spin" /> : <Zap size={12} />}
+                        {isPortfolioSimulating ? 'מעבד...' : 'הרץ סימולציה (1,000 תרחישים)'}
+                      </button>
+                    </div>
+
+                    {!portfolioMcResults ? (
+                      <div style={{ height: '220px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--border-sharp)', borderRadius: '8px', background: 'var(--bg-canvas)' }}>
+                        <ShieldAlert size={32} style={{ color: 'var(--text-muted)', marginBottom: '1rem', opacity: 0.5 }} />
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>טרם הורצה סימולציה עבור הפורטפוליו המצטבר.</span>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '4px' }}>הרץ סימולציה לבדיקת התפלגות רווחים בשינויי שוק קורלטיביים.</span>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+                          <div style={{ background: 'var(--bg-canvas)', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-sharp)' }}>
+                            <span style={{ fontSize: '0.55rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>תוחלת רווח (Mean)</span>
+                            <div className="mono-number" style={{ fontSize: '1rem', fontWeight: 800, marginTop: '4px', color:'var(--accent)' }}>₪{(portfolioMcResults.stats.meanProfit/1e6).toFixed(1)}M</div>
+                          </div>
+                          <div style={{ background: 'var(--bg-canvas)', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-sharp)' }}>
+                            <span style={{ fontSize: '0.55rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>סיכון קצה (P5)</span>
+                            <div className="mono-number" style={{ fontSize: '1rem', fontWeight: 800, marginTop: '4px', color:'var(--danger)' }}>₪{(portfolioMcResults.stats.p5/1e6).toFixed(1)}M</div>
+                          </div>
+                          <div style={{ background: 'var(--bg-canvas)', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-sharp)' }}>
+                            <span style={{ fontSize: '0.55rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>חציון (P50)</span>
+                            <div className="mono-number" style={{ fontSize: '1rem', fontWeight: 800, marginTop: '4px' }}>₪{(portfolioMcResults.stats.p50/1e6).toFixed(1)}M</div>
+                          </div>
+                          <div style={{ background: 'var(--bg-canvas)', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-sharp)' }}>
+                            <span style={{ fontSize: '0.55rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>הסתברות להפסד</span>
+                            <div className="mono-number" style={{ fontSize: '1rem', fontWeight: 800, marginTop: '4px', color: portfolioMcResults.stats.probLoss > 5 ? 'var(--danger)' : 'var(--text-pri)' }}>{portfolioMcResults.stats.probLoss.toFixed(1)}%</div>
+                          </div>
+                        </div>
+
+                        <div style={{ height: '140px', background: 'var(--bg-canvas)', borderRadius: '8px', border: '1px solid var(--border-sharp)', display: 'flex', alignItems: 'flex-end', padding: '10px 15px', gap: '3px', position: 'relative' }}>
+                          {(() => {
+                            const numBins = 30;
+                            const profits = portfolioMcResults.raw.map(r => r.profit);
+                            const min = Math.min(...profits);
+                            const max = Math.max(...profits);
+                            const range = max - min;
+                            const bins = Array(numBins).fill(0);
+                            
+                            profits.forEach(p => {
+                              const bIdx = Math.min(numBins - 1, Math.floor(((p - min) / (range || 1)) * numBins));
+                              bins[bIdx]++;
+                            });
+                            
+                            const maxCount = Math.max(...bins) || 1;
+                            
+                            return bins.map((count, i) => {
+                              const binValue = min + (i / numBins) * range;
+                              const height = (count / maxCount) * 100;
+                              return (
+                                <div 
+                                  key={i} 
+                                  style={{ 
+                                    flex: 1, 
+                                    height: `${height}%`, 
+                                    background: binValue < 0 ? 'var(--danger)' : 'var(--accent)',
+                                    opacity: 0.6 + (height / 250),
+                                    borderRadius: '1px 1px 0 0'
+                                  }} 
+                                />
+                              );
+                            });
+                          })()}
+                          <div style={{ position:'absolute', top: 10, left: 15, fontSize: '0.6rem', color: 'var(--text-sec)', fontWeight: 700 }}>התפלגות רווח מוערכת (Portfolio NPV)</div>
+                        </div>
+                        
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                          <Info size={10} style={{ verticalAlign:'middle', marginLeft: '4px' }}/>
+                          הסימולציה מניחה מתאם שוק מלא בין הפרויקטים (Correlated Macro Risks).
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            ) : null}
+          ) : null}
         </motion.div>
       </AnimatePresence>
 
@@ -1954,6 +2803,36 @@ const App = () => {
         .stat-label { font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 5px; }
         .stat-value { font-size: 1.5rem; font-weight: 700; color: #1e293b; }
         .stat-sub { font-size: 0.85rem; font-weight: 400; color: var(--text-muted); }
+        
+        [data-tooltip] { position: relative; cursor: help; display: inline-flex; align-items: center; gap: 4px; }
+        [data-tooltip]::before {
+          content: attr(data-tooltip);
+          position: absolute;
+          bottom: 125%;
+          left: 50%;
+          transform: translateX(-50%);
+          padding: 10px 14px;
+          background: #1e293b;
+          color: #f8fafc;
+          border-radius: 6px;
+          font-size: 0.75rem;
+          white-space: normal;
+          width: 220px;
+          box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+          opacity: 0;
+          visibility: hidden;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          z-index: 1000;
+          pointer-events: none;
+          text-align: right;
+          line-height: 1.5;
+          font-weight: 400;
+        }
+        [data-tooltip]:hover::before {
+          opacity: 1;
+          visibility: visible;
+          bottom: 150%;
+        }
       `}</style>
     </div>
   );
