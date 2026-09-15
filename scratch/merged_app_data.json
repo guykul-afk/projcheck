@@ -3926,6 +3926,102 @@
                       }
                     ]
                   }
+                },
+                "analysisResult": {
+                  "mapValue": {
+                    "fields": {
+                      "comparables": {
+                        "arrayValue": {
+                          "values": [
+                            {
+                              "mapValue": {
+                                "fields": {
+                                  "address": {
+                                    "stringValue": "סמוך (50מ')"
+                                  },
+                                  "date": {
+                                    "stringValue": "02/2024"
+                                  },
+                                  "price": {
+                                    "integerValue": "34680"
+                                  },
+                                  "size": {
+                                    "stringValue": "85 מ\"ר"
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "mapValue": {
+                                "fields": {
+                                  "address": {
+                                    "stringValue": "רדיוס 200מ'"
+                                  },
+                                  "date": {
+                                    "stringValue": "12/2023"
+                                  },
+                                  "price": {
+                                    "integerValue": "32980"
+                                  },
+                                  "size": {
+                                    "stringValue": "110 מ\"ר"
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "mapValue": {
+                                "fields": {
+                                  "address": {
+                                    "stringValue": "רדיוס 450מ'"
+                                  },
+                                  "date": {
+                                    "stringValue": "11/2023"
+                                  },
+                                  "price": {
+                                    "integerValue": "35700"
+                                  },
+                                  "size": {
+                                    "stringValue": "72 מ\"ר"
+                                  }
+                                }
+                              }
+                            },
+                            {
+                              "mapValue": {
+                                "fields": {
+                                  "address": {
+                                    "stringValue": "רדיוס 500מ'"
+                                  },
+                                  "date": {
+                                    "stringValue": "09/2023"
+                                  },
+                                  "price": {
+                                    "integerValue": "31960"
+                                  },
+                                  "size": {
+                                    "stringValue": "94 מ\"ר"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      },
+                      "gap": {
+                        "stringValue": "-11.6"
+                      },
+                      "lastScan": {
+                        "stringValue": "19.4.2026"
+                      },
+                      "neighborhood": {
+                        "stringValue": "אזור כללי"
+                      },
+                      "speed": {
+                        "stringValue": "מהיר מאוד"
+                      }
+                    }
+                  }
                 }
               }
             }

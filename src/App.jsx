@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   PieChart, FileText, Save, Calculator, Building, 
-  Activity, ChevronDown, Plus, Trash, Info, List, MapPin, LogOut, BarChart2, TrendingUp, Copy, Layers,
-  Zap, ShieldAlert, Loader
+  Activity, ChevronDown, ChevronUp, Plus, Trash, Info, HelpCircle, List, MapPin, LogOut, BarChart2, TrendingUp, Copy, Layers,
+  Zap, ShieldAlert, Loader, PlayCircle, Database, ArrowUpDown, ArrowUp, ArrowDown, GripVertical
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from './firebase';
 import { useAuth } from './AuthContext';
+import { MARKET_TRANSACTIONS } from './data/marketData';
+import { MarketDataService } from './services/MarketDataService';
 
 const INITIAL_BUDGET = [
   { id: 1, section: 'קרקע + ייזום', color: '#264653', items: [ // Deep Teal
@@ -69,33 +71,47 @@ const createDefaultProject = (id = 'p1', name = 'פרויקט חדש') => ({
   financingPercent: 7,
   salesData: [],
   includeInPortfolio: true,
+  isCombinationDeal: false,
+  combinationLandownerPct: 40,
 });
 
 // ─── Project color palette (Modern Teal/Blue/Neutral) ───
 const PROJ_COLORS = ['#264653', '#58A6FF', '#3E4A3D', '#F4A261', '#E76F51', '#6B7280', '#2A9D8F', '#8E9AAF'];
 
+// Israel Real Estate Market Volatility Presets (Realistic approximations)
+const VOL_PRESETS = {
+  '1y': { label: '1Y - שנה (קצר)', revVol: 12, costVol: 8, interestVol: 2.0 },
+  '5y': { label: '5Y - 5 שנים (מוניטרי)', revVol: 8, costVol: 5, interestVol: 1.5 },
+  '10y': { label: '10Y - 10 שנים (ממוצע)', revVol: 6, costVol: 4, interestVol: 1.2 }
+};
+
 // ─── Pure: inventory stats ───
-function computeInventoryStats(inventoryData) {
+function computeInventoryStats(inventoryData, project) {
   const arr = inventoryData || [];
   const totalUnits = arr.length;
-  if (totalUnits === 0) return { totalUnits:0, devUnits:0, ownerUnits:0, devUnitsPct:'0.0', totalArea:0, devArea:0, devAreaPct:'0.0', devValueInclVat:0, devValueExclVat:0, devValuePct:0, ownerValueInclVat:0, totalProjectValue:0, avgPricePerSqm:0 };
+  if (totalUnits === 0) return { totalUnits:0, devUnits:0, ownerUnits:0, devUnitsPct:'0.0', totalArea:0, devArea:0, devAreaPct:'0.0', devValueInclVat:0, devValueExclVat:0, devValuePct:0, ownerValueInclVat:0, totalProjectValue:0, avgPricePerSqm:0, isCombinationDeal:false, combinationLandownerPct:40, combinationDevPct:60 };
   
-  const devUnits = arr.reduce((s, a) => s + (a.contractorSharePct || (a.type === 'יזם' ? 100 : 0)) / 100, 0);
+  const isComb = Boolean(project?.isCombinationDeal);
+  const landownerPct = Number(project?.combinationLandownerPct ?? 40);
+  const devPct = Math.max(0, Math.min(100, 100 - landownerPct));
+  const getShare = (a) => isComb ? devPct : (a.contractorSharePct !== undefined ? a.contractorSharePct : (a.type === 'יזם' ? 100 : 0));
+
+  const devUnits = arr.reduce((s, a) => s + (getShare(a) / 100), 0);
   const ownerUnits = totalUnits - devUnits;
   
   const totalArea = arr.reduce((s, a) => s + a.area, 0);
   const devArea = arr.reduce((s, a) => {
-    const share = a.contractorSharePct !== undefined ? a.contractorSharePct : (a.type === 'יזם' ? 100 : 0);
+    const share = getShare(a);
     return s + (a.area * share / 100);
   }, 0);
   
   const devValueInclVat = arr.reduce((s, a) => {
-    const share = a.contractorSharePct !== undefined ? a.contractorSharePct : (a.type === 'יזם' ? 100 : 0);
+    const share = getShare(a);
     return s + (a.price * share / 100);
   }, 0);
   
   const ownerValueInclVat = arr.reduce((s, a) => {
-    const share = a.contractorSharePct !== undefined ? a.contractorSharePct : (a.type === 'יזם' ? 100 : 0);
+    const share = getShare(a);
     return s + (a.price * (100 - share) / 100);
   }, 0);
   
@@ -103,22 +119,48 @@ function computeInventoryStats(inventoryData) {
   
   const specialValueInclVat = arr.reduce((s, a) => {
     if (a.category !== 'מיוחדת') return s;
-    const share = a.contractorSharePct !== undefined ? a.contractorSharePct : (a.type === 'יזם' ? 100 : 0);
+    const share = getShare(a);
     return s + (a.price * share / 100);
   }, 0);
+
+  const specialArea = arr.reduce((s, a) => (a.category === 'מיוחדת' ? s + a.area : s), 0);
   
   const devValueExclVat = devValueInclVat / 1.17;
   const specialValueExclVat = specialValueInclVat / 1.17;
+
+  // New metrics
+  const avgAptArea = totalArea / totalUnits;
+  const specialAreaPctTotal = totalArea > 0 ? (specialArea / totalArea * 100).toFixed(1) : 0;
+  
+  const roomGroups = arr.reduce((acc, a) => {
+    const r = a.rooms || 0;
+    acc[r] = (acc[r] || 0) + 1;
+    return acc;
+  }, {});
+
+  const roomSplit = Object.keys(roomGroups).map(r => {
+    const segmentUnits = arr.filter(a => a.rooms === Number(r));
+    const segmentArea = segmentUnits.reduce((s, a) => s + a.area, 0);
+    const segmentValue = segmentUnits.reduce((s, a) => s + a.price, 0);
+    return {
+      rooms: r,
+      count: roomGroups[r],
+      pct: (roomGroups[r] / totalUnits * 100).toFixed(1),
+      avgPrice: segmentArea > 0 ? (segmentValue / segmentArea) : 0
+    };
+  }).sort((a,b) => a.rooms - b.rooms);
   
   return {
     totalUnits, devUnits, ownerUnits, devUnitsPct:(devUnits/totalUnits*100).toFixed(1),
     totalArea, devArea, devAreaPct:(totalArea > 0 ? (devArea/totalArea*100).toFixed(1) : 0),
+    avgAptArea, specialAreaPctTotal, roomSplit,
     devValueInclVat, devValueExclVat,
     specialValueExclVat,
     specialValuePct: devValueExclVat > 0 ? (specialValueExclVat / devValueExclVat * 100).toFixed(1) : 0,
     devValuePct: totalValue>0 ? (devValueInclVat/totalValue*100).toFixed(1) : 0,
     ownerValueInclVat, totalProjectValue: totalValue,
-    avgPricePerSqm: devArea>0 ? devValueInclVat/devArea : 0
+    avgPricePerSqm: devArea>0 ? devValueInclVat/devArea : 0,
+    totalAvgPricePerSqm: totalArea > 0 ? totalValue / totalArea : 0
   };
 }
 
@@ -170,10 +212,10 @@ function buildMonthlyData(project, budStats, invStats) {
   const salesData=project.salesData||[];
   let fixedM1=0,constrT=0,linT=0;
   budStats.finalSections.forEach(sec=>sec.items.forEach(item=>{
-    const n=item.name.toLowerCase();
+    const n=(item && item.name) ? item.name.toLowerCase() : '';
     if(n.includes('רכישה')||n.includes('השבחה')||n.includes('קרקע')||n.includes('אגרות')||n.includes('היטלים'))fixedM1+=item.total;
-    else if(item.id.startsWith('3-'))constrT+=item.total;
-    else linT+=item.total;
+    else if(item && item.id && item.id.startsWith('3-'))constrT+=item.total;
+    else linT+=(item ? item.total : 0);
   }));
   linT+=budStats.financing||0;
   const p1E=Math.max(1,Math.floor(months*0.25)),p2E=Math.max(p1E+1,Math.floor(months*0.75));
@@ -261,7 +303,7 @@ function getProjectRisk(profitPct,annualRoe,irr){
 
 // ─── Pure: compute all KPIs for one project ───
 function computeProjectKPIs(project) {
-  const inv=computeInventoryStats(project.inventoryData);
+  const inv=computeInventoryStats(project.inventoryData, project);
   const bud=computeBudgetStats(project.budgetData,inv,project.constructionMonths??24,project.financingPercent??7);
   const totalCost=bud.grandTotal,revenue=inv.devValueExclVat,profit=revenue-totalCost;
   const profitPct=totalCost>0?(profit/totalCost)*100:0;
@@ -283,10 +325,15 @@ function computeProjectKPIs(project) {
     totalEffAG: ag > 0 ? (inv.totalArea / ag) : 0,
     devEffAG: ag > 0 ? (inv.devArea / ag) : 0,
     totalEffTotal: (ag + ug) > 0 ? (inv.totalArea / (ag + ug)) : 0,
-    devEffTotal: (ag + ug) > 0 ? (inv.devArea / (ag + ug)) : 0
+    devEffTotal: (ag + ug) > 0 ? (inv.devArea / (ag + ug)) : 0,
+    ugToAgRatio: ag > 0 ? (ug / ag) : 0
   };
 
-  return{totalCost,revenue,profit,profitPct,equity,roe,annualRoe,irr,risk,equityExposure,maxExposure,months,devUnits:inv.devUnits,totalUnits:inv.totalUnits,devArea:inv.devArea,constructionMonths:project.constructionMonths??24,planning};
+  const fixedCost = bud.finalSections[0].items.reduce((a,i)=>a+i.total,0);
+  const variableCost = Math.max(0, totalCost - (fixedCost + (bud.financing || 0)));
+  const financing = bud.financing || 0;
+
+  return{totalCost,fixedCost,variableCost,financing,revenue,profit,profitPct,equity,roe,annualRoe,irr,risk,equityExposure,maxExposure,months,devUnits:inv.devUnits,totalUnits:inv.totalUnits,devArea:inv.devArea,totalArea:inv.totalArea,totalAvgPricePerSqm:inv.totalAvgPricePerSqm,constructionMonths:project.constructionMonths??24,financingPercent:project.financingPercent??7,planning};
 }
 
 // ─── Pure: Monte Carlo Simulation Helpers ───
@@ -349,6 +396,114 @@ function runMonteCarlo(project, config) {
   };
 }
 
+const EXPLANATIONS = {
+  'name': {
+    title: 'שם הפרויקט',
+    desc: 'שם המודל/הפרויקט בפורטפוליו.',
+    formula: 'עריכת טקסט חופשית'
+  },
+  'totalUnits': {
+    title: "יחידות (יזם)",
+    desc: 'סך כל יחידות הדיור בפרויקט, ובסוגריים מספר היחידות המשויכות לשיווק היזם.',
+    formula: 'סך יחידות במלאי (סכום אחוזי השותפות של היזם לכל דירה)'
+  },
+  'totalCost': {
+    title: 'עלות פרויקט',
+    desc: 'סך כל עלויות הפרויקט כולל רכישת קרקע, עלויות בנייה ישירות, עלויות עקיפות ועלויות מימון וערבויות.',
+    formula: 'עלויות בסיס + סך תקציב מימון (עלויות בסיס כפול אחוז המימון של הפרויקט)'
+  },
+  'costPerSqm': {
+    title: 'עלות למ"ר דירות יזם',
+    desc: 'היחס בין סך העלות של הפרויקט לשטח הדירות הנקי המשויך ליזם.',
+    formula: 'סך עלות פרויקט / שטח דירות יזם (מ"ר נטו)'
+  },
+  'revenue': {
+    title: 'הכנסה',
+    desc: 'סך ההכנסות הצפויות ליזם ממכירת חלקו בדירות במלאי, ללא מע"מ (מחושב לפי הפחתת מע"מ של 17%).',
+    formula: 'סך שווי מכירות יזם כולל מע"מ / 1.17'
+  },
+  'revPerSqm': {
+    title: 'הכנסה למ"ר דירות יזם',
+    desc: 'היחס בין סך הכנסות היזם (ללא מע"מ) לשטח הדירות הנקי של היזם.',
+    formula: 'סך הכנסות יזם ללא מע"מ / שטח דירות יזם (מ"ר נטו)'
+  },
+  'totalAvgPricePerSqm': {
+    title: 'מחיר ממוצע למ"ר',
+    desc: 'ממוצע מחיר המכירה למ"ר כולל מע"מ עבור כלל יחידות הדיור בפרויקט.',
+    formula: 'סך שווי כלל הדירות (יזם ובעלים) / סך שטח הדירות במלאי'
+  },
+  'profit': {
+    title: 'רווח',
+    desc: 'הרווח הנקי הצפוי ליזם מהפרויקט (ללא מע"מ).',
+    formula: 'הכנסות יזם (ללא מע"מ) - סך עלות פרויקט'
+  },
+  'profitPct': {
+    title: 'רווחיות',
+    desc: 'אחוז הרווח של היזם ביחס לעלויות הכוללות של הפרויקט. יעד הרווחיות המקובל בשוק הוא מעל 15%-20%.',
+    formula: '(רווח / סך עלות פרויקט) * 100'
+  },
+  'equity': {
+    title: 'הון עצמי',
+    desc: 'סכום ההון העצמי הנדרש להשקעה בפרויקט בהתאם לאחוז שהוגדר מתוך עלויות הפרויקט.',
+    formula: 'סך עלות פרויקט * אחוז הון עצמי מוגדר (ברירת מחדל: 30%)'
+  },
+  'annualRoe': {
+    title: 'תשואה שנתית על ההון (Annualized ROE)',
+    desc: 'ממוצע התשואה השנתית של ההון העצמי שהושקע לאורך כל תקופת הבנייה והפיתוח.',
+    formula: '((רווח / הון עצמי) * 100) / (חודשי בנייה / 12)'
+  },
+  'irr': {
+    title: 'שיעור תשואה פנימי (IRR)',
+    desc: 'שיעור התשואה הפנימי השנתי של הפרויקט. המדד המרכזי שבוחן את רווחיות ההשקעה לאורך זמן, הלוקח בחשבון את עיתוי זרימת המזומנים (השקעות לעומת תקבולים מרוכשים).',
+    formula: 'מחושב באמצעות אלגוריתם Newton-Raphson על תזרים המזומנים החודשי המתוכנן של הפרויקט'
+  },
+  'planning.ag': {
+    title: 'שטח עילי (מ"ר)',
+    desc: 'סך שטח הבנייה העילי ברוטו המתוכנן בפרויקט (מתוך סעיף 3-4 בבנייה הישירה בתקציב).',
+    formula: 'כמות מוגדרת בסעיף שטח עילי'
+  },
+  'planning.ug': {
+    title: 'שטח תת-קרקעי (מ"ר)',
+    desc: 'סך שטח הבנייה התת-קרקעי ברוטו המתוכנן בפרויקט (מתוך סעיף 3-3 בבנייה הישירה בתקציב).',
+    formula: 'כמות מוגדרת בסעיף מרתפים/תת-קרקעי'
+  },
+  'planning.ugToAgRatio': {
+    title: 'יחס תת-קרקעי/עילי',
+    desc: 'היחס באחוזים בין שטח הבנייה התת-קרקעי לבין שטח הבנייה העילי. מסייע להעריך את מורכבות ועלות הבנייה.',
+    formula: '(שטח תת-קרקעי / שטח עילי) * 100'
+  },
+  'planning.taa': {
+    title: 'שטח דירות נטו',
+    desc: 'סך כל השטח הנקי (נטו) של כלל הדירות במלאי הפרויקט (דירות יזם ודירות בעלים).',
+    formula: 'סכום שטחי הדירות במלאי'
+  },
+  'planning.daa': {
+    title: 'שטח דירות יזם נטו',
+    desc: 'סך השטח הנקי (נטו) של הדירות המשווקות על ידי היזם.',
+    formula: 'סכום שטחי הדירות במלאי המוכפל בחלק היזם בכל דירה'
+  },
+  'planning.totalEffAG': {
+    title: 'יעילות שטח עילי (נטו/ברוטו עילי)',
+    desc: 'יחס היעילות בין שטח הדירות הנקי לבין שטח הבנייה העילי ברוטו. מעיד על ניצול השטח בבניין העילי.',
+    formula: '(שטח דירות נטו / שטח עילי ברוטו) * 100'
+  },
+  'planning.devEffAG': {
+    title: 'יעילות יזם לשטח עילי',
+    desc: 'היחס בין שטח הדירות של היזם לבין שטח הבנייה העילי ברוטו.',
+    formula: '(שטח דירות יזם נטו / שטח עילי ברוטו) * 100'
+  },
+  'planning.totalEffTotal': {
+    title: 'יעילות פרויקט כוללת (נטו/ברוטו כולל)',
+    desc: 'יחס היעילות הכולל של הפרויקט – סך שטח הדירות הנקי חלקי סך כל שטח הבנייה (עילי ותת-קרקעי ברוטו).',
+    formula: '(שטח דירות נטו / (שטח עילי + שטח תת-קרקעי ברוטו)) * 100'
+  },
+  'planning.devEffTotal': {
+    title: 'יעילות יזם כוללת',
+    desc: 'היחס בין שטח הדירות של היזם לבין סך כל שטח הבנייה ברוטו (עילי ותת-קרקעי).',
+    formula: '(שטח דירות יזם נטו / (שטח עילי + שטח תת-קרקעי ברוטו)) * 100'
+  }
+};
+
 const App = () => {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('budget');
@@ -359,11 +514,17 @@ const App = () => {
   const [hoveredMonth, setHoveredMonth] = useState(null);
   const [bulkAdjustmentPct, setBulkAdjustmentPct] = useState(1.0);
   
-  const [mcConfig, setMcConfig] = useState({ iterations: 1000, costVol: 5, revVol: 10, interestVol: 1 });
+  const [mcConfig, setMcConfig] = useState({ iterations: 1000, costVol: 8, revVol: 12, interestVol: 2, preset: '1y' });
   const [mcResults, setMcResults] = useState(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [portfolioMcResults, setPortfolioMcResults] = useState(null);
   const [isPortfolioSimulating, setIsPortfolioSimulating] = useState(false);
+  
+  // Sorting States
+  const [portfolioSort, setPortfolioSort] = useState({ key: 'profit', direction: 'desc' });
+  const [inventorySort, setInventorySort] = useState({ key: null, direction: 'desc' });
+  const [marketSort, setMarketSort] = useState({ key: 'date', direction: 'desc' });
+  const [explanationModal, setExplanationModal] = useState(null);
 
   // Projects State
   const [projects, setProjects] = useState([createDefaultProject('p1', 'פרויקט ראשון')]);
@@ -386,9 +547,9 @@ const App = () => {
   const financingPercent = activeProject?.financingPercent ?? 7;
   const startDate = activeProject?.startDate || '';
 
-  // Market Analysis State (Ephemeral)
+  // Market Analysis State (EPHEMERAL UI)
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState(null);
+  const analysisResult = activeProject?.analysisResult;
 
   // --- Firestore: Load on mount ---
   useEffect(() => {
@@ -526,40 +687,169 @@ const App = () => {
     };
   }, []);
 
-  const inventoryStats = useMemo(() => computeInventoryStats(inventoryData), [inventoryData]);
+  const inventoryStats = useMemo(() => computeInventoryStats(inventoryData, activeProject), [inventoryData, activeProject]);
 
-  // Market Analysis Logic
-  const runMarketAnalysis = () => {
+  // Sorted Inventory Data
+  const sortedInventoryData = useMemo(() => {
+    if (!inventorySort.key) return inventoryData;
+    return [...inventoryData].sort((a, b) => {
+      let vA = inventorySort.key === 'sqmPrice' ? (a.area > 0 ? a.price / a.area : 0) : a[inventorySort.key];
+      let vB = inventorySort.key === 'sqmPrice' ? (b.area > 0 ? b.price / b.area : 0) : b[inventorySort.key];
+      
+      // Numeric conversion if possible
+      const nA = parseFloat(vA);
+      const nB = parseFloat(vB);
+      if (!isNaN(nA) && !isNaN(nB)) {
+        vA = nA; vB = nB;
+      } else {
+        if (typeof vA === 'string') vA = vA.toLowerCase();
+        if (typeof vB === 'string') vB = vB.toLowerCase();
+      }
+      
+      if (vA === vB) return 0;
+      const res = vA < vB ? -1 : 1;
+      return inventorySort.direction === 'asc' ? res : -res;
+    });
+  }, [inventoryData, inventorySort]);
+
+  // Project Reordering Logic
+  const moveProject = (index, direction) => {
+    const newProjects = [...projects];
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= newProjects.length) return;
+    
+    // Swap in the original array
+    [newProjects[index], newProjects[targetIndex]] = [newProjects[targetIndex], newProjects[index]];
+    setProjects(newProjects);
+    
+    // Clear sort to see manual order immediately
+    setPortfolioSort({ key: null, direction: 'desc' });
+  };
+
+  // Market Analysis Logic (High Fidelity - Integration with State/Research)
+  const runMarketAnalysis = async () => {
     if (!projectAddress) return;
     setIsAnalyzing(true);
     
-    // Simulate API call to Nadlan/Madlan
-    setTimeout(() => {
-      // Deterministic "random" price based on address string length for demo
-      const basePrice = 25000 + (projectAddress.length % 20) * 500;
-      updateProject({ marketSqmPrice: basePrice });
+    // UI steps for the progress animation
+    const steps = [
+      "מפענח מרכיבי כתובת...",
+      "מתחבר למאגר רשות המיסים...",
+      "שולף עסקאות נדל\"ן בזמן אמת...",
+      "מנתח מגמות שוק ורמות מחיר...",
+      "מחשב פער שוק ומהירות מכירות..."
+    ];
+    
+    // Start analyzing indicator
+    let currentStep = 0;
+    const interval = setInterval(() => {
+      if (currentStep < steps.length - 1) {
+        currentStep++;
+      }
+    }, 800);
+
+    try {
+      // Step 1: Parse address
+      const addressInfo = MarketDataService.parseAddress(projectAddress);
       
-      const avgProjectSqm = inventoryStats.avgPricePerSqm;
-      const gap = ((avgProjectSqm - basePrice) / basePrice) * 100;
+      // Step 2 & 3: Fetch from API
+      const records = await MarketDataService.fetchTransactions(addressInfo);
       
-      let speed = "בינוני";
-      if (gap < -5) speed = "מהיר מאוד";
-      else if (gap < 0) speed = "מהיר";
-      else if (gap > 10) speed = "איטי מאוד";
-      else if (gap > 5) speed = "איטי";
+      // Step 4: Process statistics
+      const results = MarketDataService.processResults(records, addressInfo.houseNumber);
       
-      setAnalysisResult({
-        speed,
-        gap: gap.toFixed(1),
-        comparables: [
-          { date: '01/2024', price: basePrice * 0.98, dist: '150m' },
-          { date: '11/2023', price: basePrice * 1.02, dist: '300m' },
-          { date: '08/2023', price: basePrice * 0.95, dist: '450m' }
-        ]
+      // Artificial delay to let the user see the progress steps if API is too fast
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      clearInterval(interval);
+
+      if (results) {
+        const marketPrice = results.medianSqm;
+        const avgProjectSqm = inventoryStats.avgPricePerSqm;
+        const gap = ((avgProjectSqm - marketPrice) / marketPrice) * 100;
+        
+        let speed = "בינוני";
+        if (gap < -8) speed = "מהיר מאוד";
+        else if (gap < -2) speed = "מהיר";
+        else if (gap > 12) speed = "איטי מאוד";
+        else if (gap > 5) speed = "איטי";
+
+        // Enrich with static pipeline data if available (fallback/augmentation)
+        const staticData = MARKET_TRANSACTIONS[projectAddress];
+        
+        updateProject({
+          marketSqmPrice: marketPrice,
+          analysisResult: {
+            neighborhood: results.neighborhood,
+            speed,
+            gap: gap.toFixed(1),
+            lastScan: new Date().toLocaleDateString('he-IL'),
+            isRealData: true,
+            transactions: results.transactions,
+            comparables: results.transactions, // Added for UI compatibility
+            pipelineProjects: staticData?.pipeline || []
+          }
+        });
+      } else {
+        // Fallback to heuristics if no records found
+        throw new Error("No records found for this address");
+      }
+    } catch (error) {
+      console.error("Analysis Failed:", error);
+      // Fallback logic
+      const realData = MARKET_TRANSACTIONS[projectAddress];
+      let marketPrice = 28000;
+      let neighborhood = "אזור כללי";
+      if (projectAddress.includes("גבעתיים")) { marketPrice = 48000; neighborhood = "גבעתיים (מרכז)"; }
+      else if (projectAddress.includes("תל אביב")) { marketPrice = 65000; neighborhood = "תל אביב (מרכז)"; }
+      
+      if (realData) {
+        marketPrice = realData.medianSqm;
+        neighborhood = realData.neighborhood;
+      }
+
+      updateProject({
+        marketSqmPrice: marketPrice,
+        analysisResult: {
+          neighborhood: neighborhood,
+          speed: realData ? realData.speed : "ממוצע",
+          gap: realData ? realData.gap : "0.0",
+          lastScan: new Date().toLocaleDateString('he-IL'),
+          isRealData: false,
+          transactions: realData ? realData.comparables : [],
+          comparables: realData ? realData.comparables : [], // Added for fallback consistency
+          pipelineProjects: realData ? realData.pipeline : []
+        }
       });
+    } finally {
       setIsAnalyzing(false);
-    }, 1500);
+      clearInterval(interval);
+    }
   };
+
+  const sortedMarketTransactions = useMemo(() => {
+    const list = analysisResult?.transactions || analysisResult?.comparables || [];
+    if (!marketSort.key) return list;
+    return [...list].sort((a, b) => {
+      let vA = a[marketSort.key];
+      let vB = b[marketSort.key];
+      
+      // Special Date Handling (DD.MM.YYYY)
+      if (marketSort.key === 'date' && typeof vA === 'string' && vA.includes('.')) {
+        const [d1, m1, y1] = vA.split('.').map(Number);
+        const [d2, m2, y2] = vB.split('.').map(Number);
+        vA = new Date(y1 || 0, (m1 || 1)-1, d1 || 1).getTime();
+        vB = new Date(y2 || 0, (m2 || 1)-1, d2 || 1).getTime();
+      } else {
+        const nA = parseFloat(vA);
+        const nB = parseFloat(vB);
+        if (!isNaN(nA) && !isNaN(nB)) { vA = nA; vB = nB; }
+      }
+      
+      if (vA === vB) return 0;
+      const res = vA < vB ? -1 : 1;
+      return marketSort.direction === 'asc' ? res : -res;
+    });
+  }, [analysisResult, marketSort]);
 
   const budgetStats = useMemo(() =>
     computeBudgetStats(budgetData, inventoryStats, constructionMonths, financingPercent),
@@ -567,40 +857,78 @@ const App = () => {
   );
 
   // Portfolio: KPIs for all projects (for portfolio tab)
-  const allProjectsKPIs = useMemo(() =>
-    projects
+  const allProjectsKPIs = useMemo(() => {
+    let list = projects
       .filter(p => p.includeInPortfolio !== false)
-      .map((p, i) => ({ ...computeProjectKPIs(p), id: p.id, name: p.name, colorIdx: i })),
-    [projects]
-  );
+      .map((p, i) => {
+        const kpis = computeProjectKPIs(p);
+        const ag = p.budgetData[2]?.items?.find(item => item.id === '3-4')?.quantity || 0;
+        const ug = p.budgetData[2]?.items?.find(item => item.id === '3-3')?.quantity || 0;
+        const inv = computeInventoryStats(p.inventoryData, p);
+        
+        return { 
+          ...kpis, 
+          id: p.id, 
+          name: p.name, 
+          colorIdx: i,
+          costPerSqm: kpis.devArea > 0 ? (kpis.totalCost / kpis.devArea) : 0,
+          revPerSqm: kpis.devArea > 0 ? (kpis.revenue / kpis.devArea) : 0,
+          // Add Planning data for sorting
+          planning: {
+            ag,
+            ug,
+            taa: inv.totalArea,
+            daa: inv.devArea,
+            totalEffAG: ag > 0 ? (inv.totalArea / ag) : 0,
+            devEffAG: ag > 0 ? (inv.devArea / ag) : 0,
+            totalEffTotal: (ag + ug) > 0 ? (inv.totalArea / (ag + ug)) : 0,
+            devEffTotal: (ag + ug) > 0 ? (inv.devArea / (ag + ug)) : 0,
+            ugToAgRatio: ag > 0 ? (ug / ag) : 0
+          }
+        };
+      });
+
+    if (portfolioSort.key) {
+      list.sort((a, b) => {
+        let vA, vB;
+        if (portfolioSort.key === 'name') {
+          vA = a.name; vB = b.name;
+        } else if (portfolioSort.key.includes('.')) {
+          const [k1, k2] = portfolioSort.key.split('.');
+          vA = a[k1][k2]; vB = b[k1][k2];
+        } else {
+          vA = a[portfolioSort.key]; vB = b[portfolioSort.key];
+        }
+        
+        if (vA === vB) return 0;
+        const res = vA < vB ? -1 : 1;
+        return portfolioSort.direction === 'asc' ? res : -res;
+      });
+    }
+    return list;
+  }, [projects, portfolioSort]);
 
   const portfolioSensitivityData = useMemo(() => {
     const revSteps = [-10, -5, 0, 5, 10];
     const costSteps = [-10, -5, 0, 5, 10];
-    const portProjects = projects.filter(p => p.includeInPortfolio !== false);
+    const portKPIs = allProjectsKPIs;
     
     return revSteps.map(revPct => {
+      const revMult = (1 + revPct / 100);
       return costSteps.map(costPct => {
+        const costMult = (1 + costPct / 100);
         let totalProfit = 0;
-        portProjects.forEach(project => {
-          const perturbed = {
-            ...project,
-            budgetData: project.budgetData.map(sec => ({
-              ...sec,
-              items: sec.items.map(item => ({ ...item, total: item.total * (1 + costPct / 100) }))
-            })),
-            inventoryData: project.inventoryData.map(apt => ({
-              ...apt,
-              price: apt.price * (1 + revPct / 100)
-            }))
-          };
-          const kpis = computeProjectKPIs(perturbed);
-          totalProfit += kpis.profit;
+        portKPIs.forEach(kpi => {
+          const pRev = kpi.revenue * revMult;
+          // Fixed cost (Land + Initial) doesn't change with construction cost slippage.
+          // Financing is included in variable part here for simplification but kept distinct from fixed land cost.
+          const pCost = (kpi.fixedCost || 0) + ((kpi.variableCost + (kpi.financing || 0)) * costMult);
+          totalProfit += (pRev - pCost);
         });
-        return totalProfit;
+        return totalProfit / 1e6; // Convert to Millions for the matrix display
       });
     });
-  }, [projects]);
+  }, [allProjectsKPIs]);
 
   // Cash Flow Calculations
   const cashFlowStats = useMemo(() => {
@@ -617,7 +945,7 @@ const App = () => {
 
     budgetStats.finalSections.forEach(section => {
       section.items.forEach(item => {
-        const name = item.name.toLowerCase();
+        const name = item?.name?.toLowerCase() || '';
         
         // 1. Fixed Month 1 (Land, Taxes, Betterment)
         const isFixed = name.includes('רכישה') || 
@@ -627,15 +955,15 @@ const App = () => {
                         name.includes('היטלים');
         
         if (isFixed) {
-          fixedMonth1 += item.total;
+          fixedMonth1 += (item?.total || 0);
         } 
         // 2. Direct Construction (S-Curve) - Section 3 items
-        else if (item.id.startsWith('3-')) {
-          constructionTotal += item.total;
+        else if (item?.id?.startsWith('3-')) {
+          constructionTotal += (item?.total || 0);
         }
         // 3. Linear (Management, Legal, Marketing, Others)
         else {
-          linearTotal += item.total;
+          linearTotal += (item?.total || 0);
         }
       });
     });
@@ -761,7 +1089,8 @@ const App = () => {
       totalEfficiencyAG: ag > 0 ? (taa / ag) : 0,
       devEfficiencyAG: ag > 0 ? (daa / ag) : 0,
       totalEfficiencyTotal: (ag + ug) > 0 ? (taa / (ag + ug)) : 0,
-      devEfficiencyTotal: (ag + ug) > 0 ? (daa / (ag + ug)) : 0
+      devEfficiencyTotal: (ag + ug) > 0 ? (daa / (ag + ug)) : 0,
+      ugToAgRatio: ag > 0 ? (ug / ag) : 0
     };
   }, [budgetStats, inventoryStats]);
 
@@ -842,9 +1171,11 @@ const App = () => {
     setIsPortfolioSimulating(true);
     setTimeout(() => {
       try {
-        const { iterations, costVol, revVol, interestVol } = mcConfig;
+        const { iterations, preset } = mcConfig;
+        const config = VOL_PRESETS[preset] || VOL_PRESETS['1y'];
+        const { costVol, revVol, interestVol } = config;
         const results = [];
-        const portProjects = projects.filter(p => p.includeInPortfolio !== false);
+        const portProjectsKPIs = allProjectsKPIs;
         
         for (let i = 0; i < iterations; i++) {
           const costMult = randomNormal(1, costVol / 100);
@@ -855,23 +1186,27 @@ const App = () => {
           let totalCost = 0;
           let totalRevenue = 0;
 
-          portProjects.forEach(project => {
-            const perturbedProject = {
-              ...project,
-              financingPercent: Math.max(0, (project.financingPercent ?? 7) + interestDelta),
-              budgetData: project.budgetData.map(sec => ({
-                ...sec,
-                items: sec.items.map(item => ({ ...item, total: item.total * costMult }))
-              })),
-              inventoryData: project.inventoryData.map(apt => ({
-                ...apt,
-                price: apt.price * revMult
-              }))
-            };
-            const kpis = computeProjectKPIs(perturbedProject);
-            totalProfit += kpis.profit;
-            totalCost += kpis.totalCost;
-            totalRevenue += kpis.revenue;
+          portProjectsKPIs.forEach(kpi => {
+            const pRev = kpi.revenue * revMult;
+            
+            // 1. Variable construction/mgmt costs shift
+            const pVar = (kpi.variableCost || 0) * costMult;
+            
+            // 2. Financing shifts with interest changes + cost changes
+            const fPct = kpi.financingPercent || 7;
+            const newFPct = Math.max(0, fPct + interestDelta);
+            // Current financing is roughly proportional to construction costs
+            const baseFinancing = kpi.financing || 0;
+            const pFinancing = (baseFinancing * costMult) * (newFPct / fPct);
+            
+            // 3. Fixed costs stay same
+            const pFixed = (kpi.fixedCost || 0);
+
+            const pCost = pFixed + pVar + pFinancing;
+
+            totalProfit += (pRev - pCost);
+            totalCost += pCost;
+            totalRevenue += pRev;
           });
 
           results.push({ profit: totalProfit, cost: totalCost, revenue: totalRevenue });
@@ -886,8 +1221,8 @@ const App = () => {
 
         setPortfolioMcResults({
           raw: results,
-          stats: { meanProfit, p5, p50, p95, probLoss },
-          config: mcConfig
+          stats: { mean: meanProfit, p5, p50, p95, probLoss },
+          config: { ...mcConfig, ...config }
         });
       } catch (err) {
         console.error("Portfolio simulation failed", err);
@@ -945,6 +1280,62 @@ const App = () => {
     );
   };
 
+  // Helper: Reusable Sortable Table Header
+  const SortHeader = ({ label, sortKey, currentSort, onSort, align = 'right', style = {}, tooltip = null }) => {
+    const isActive = currentSort.key === sortKey;
+    return (
+      <th 
+        onClick={() => onSort(sortKey)}
+        style={{ 
+          padding:'10px 16px', 
+          textAlign: align, 
+          borderBottom:'1px solid var(--border-sharp)',
+          cursor: 'pointer',
+          userSelect: 'none',
+          transition: 'color 0.2s',
+          position: 'relative',
+          ...style
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.color = 'var(--accent)'}
+        onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: align === 'center' ? 'center' : (align === 'right' ? 'flex-end' : 'flex-start'), gap: '4px' }}>
+          <span>{label}</span>
+          {tooltip && (
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                setExplanationModal(sortKey);
+              }}
+              title="הסבר על החישוב"
+              style={{ 
+                background: 'none', 
+                border: 'none', 
+                padding: '2px', 
+                cursor: 'pointer', 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                color: 'var(--accent)', 
+                opacity: 0.8,
+                transition: 'opacity 0.2s, transform 0.2s',
+                borderRadius: '4px'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = 'scale(1.15)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.8'; e.currentTarget.style.transform = 'scale(1)'; }}
+            >
+              <HelpCircle size={12} />
+            </button>
+          )}
+          {isActive ? (
+            currentSort.direction === 'desc' ? <ArrowDown size={10} /> : <ArrowUp size={10} />
+          ) : (
+            <ArrowUpDown size={10} style={{ opacity: 0.3 }} />
+          )}
+        </div>
+      </th>
+    );
+  };
+
   if (runtimeError) {
     return (
       <div style={{ padding: '2rem', textAlign: 'center', color: 'red' }}>
@@ -986,33 +1377,6 @@ const App = () => {
             <List size={18} /> פורטפוליו
           </button>
           
-          <button
-            onClick={() => {
-              import('./RestoredData.json').then(module => {
-                const restored = module.default;
-                if (restored.projects) setProjects(restored.projects);
-                if (restored.activeProjectId) setActiveProjectId(restored.activeProjectId);
-                if (restored.activeTab) setActiveTab(restored.activeTab);
-                alert('הנתונים שוחזרו בהצלחה!');
-              }).catch(err => alert('שגיאה בשחזור הנתונים: ' + err.message));
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '0.6rem 1.2rem',
-              borderRadius: 'var(--radius-sharp)',
-              border: '1px solid var(--accent)',
-              background: 'rgba(88, 166, 255, 0.1)',
-              color: 'var(--accent)',
-              fontWeight: 600,
-              fontSize: '0.8rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
-          >
-            <Calculator size={16} /> שחזר נתונים מגרסה קודמת
-          </button>
         </div>
         
         {/* Project Selector - Dropdown Style */}
@@ -1028,35 +1392,64 @@ const App = () => {
             transition: 'all 0.2s',
             boxShadow: 'var(--shadow-sm)'
           }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>פרויקט:</span>
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <select
-                value={activeProjectId}
-                onChange={(e) => {
-                  setActiveProjectId(e.target.value);
-                  if (activeTab === 'portfolio') setActiveTab('budget');
-                }}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {/* Project Name Editor */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>שם הפרויקט:</span>
+              <input
+                value={activeProject?.name || ''}
+                onChange={(e) => updateProject({ name: e.target.value })}
+                placeholder="הזן שם פרויקט..."
                 style={{
-                  padding: '6px 32px 6px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border-sharp)',
                   background: 'var(--bg-canvas)',
-                  color: 'var(--text-pri)',
+                  border: '1px solid var(--border-sharp)',
+                  borderRadius: '4px',
+                  padding: '4px 10px',
                   fontSize: '0.85rem',
-                  fontWeight: 700,
-                  appearance: 'none',
-                  cursor: 'pointer',
-                  minWidth: '200px',
+                  fontWeight: 800,
+                  color: 'var(--accent)',
+                  width: '200px',
+                  textAlign: 'right',
                   outline: 'none',
-                  textAlign: 'right'
+                  transition: 'border-color 0.2s'
                 }}
-              >
-                {projects.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} style={{ position: 'absolute', left: '8px', pointerEvents: 'none', opacity: 0.5 }} />
+                onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
+                onBlur={(e) => e.target.style.borderColor = 'var(--border-sharp)'}
+              />
+            </div>
+
+            <div style={{ width: '1px', height: '20px', background: 'var(--border-sharp)' }} />
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>בחירת פרויקט:</span>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <select
+                  value={activeProjectId}
+                  onChange={(e) => {
+                    setActiveProjectId(e.target.value);
+                    if (activeTab === 'portfolio') setActiveTab('budget');
+                  }}
+                  style={{
+                    padding: '6px 32px 6px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-sharp)',
+                    background: 'var(--bg-canvas)',
+                    color: 'var(--text-pri)',
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    appearance: 'none',
+                    cursor: 'pointer',
+                    minWidth: '180px',
+                    outline: 'none',
+                    textAlign: 'right'
+                  }}
+                >
+                  {projects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+                <ChevronDown size={14} style={{ position: 'absolute', left: '8px', pointerEvents: 'none', opacity: 0.5 }} />
+              </div>
             </div>
           </div>
 
@@ -1372,7 +1765,7 @@ const App = () => {
                       type="text" 
                       placeholder="לדוגמה: הרצל 15, תל אביב..." 
                       value={projectAddress} 
-                      onChange={(e) => setProjectAddress(e.target.value)}
+                      onChange={(e) => updateProject({ address: e.target.value })}
                       style={{ paddingRight: '40px', width: '100%', fontSize: '1rem' }}
                     />
                     <MapPin size={18} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--accent)' }} />
@@ -1390,53 +1783,235 @@ const App = () => {
                     borderRadius: 'var(--radius-sharp)',
                     fontWeight: 700,
                     cursor: (isAnalyzing || !projectAddress) ? 'not-allowed' : 'pointer',
-                    opacity: (isAnalyzing || !projectAddress) ? 0.5 : 1
+                    opacity: (isAnalyzing || !projectAddress) ? 0.5 : 1,
+                    minWidth: '160px'
                   }}
                 >
                   {isAnalyzing ? 'סורק נתונים...' : 'בצע ניתוח שוק'}
                 </button>
               </div>
 
+              {/* Market Analysis Results - Real Data Intelligence */}
+              {analysisResult && !isAnalyzing && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="tactical-card" 
+                  style={{ borderRight: `4px solid var(--accent)`, background: 'white', padding: '2rem' }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem', borderBottom: '1px solid var(--border-sharp)', paddingBottom: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <div style={{ background: 'var(--secondary)', color: 'white', padding: '10px', borderRadius: '8px' }}>
+                        <ShieldAlert size={24} />
+                      </div>
+                      <div>
+                        <h3 style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                           דוח אימות שוק (Official Tax Data)
+                           {analysisResult.isRealData && <span style={{ padding: '2px 8px', background: 'var(--success)', color: 'white', borderRadius: '4px', fontSize: '0.6rem', fontWeight: 700 }}>VERIFIED</span>}
+                         </h3>
+                         <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>מקור: מאגר עסקאות נדל"ן (מיסוי מקרקעין) | עדכון: {analysisResult.lastScan}</p>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'left' }}>
+                       <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>מחיר יעד למ"ר</div>
+                       <div className="mono-number" style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent)' }}>₪{marketSqmPrice.toLocaleString()}</div>
+                    </div>
+                  </div>
+
+                  <div className="bento-grid" style={{ marginBottom: '2rem' }}>
+                     <div className="tactical-card col-4" style={{ background: 'var(--bg-canvas)', border: 'none' }}>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-sec)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                           <MapPin size={14} /> שכונה / אזור
+                        </div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 800 }}>{analysisResult.neighborhood}</div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '5px' }}>{analysisResult.isRealData ? 'זיהוי ודאי לפי גוש/חלקה' : 'זיהוי לפי שם עיר'}</div>
+                     </div>
+                     <div className="tactical-card col-4" style={{ background: 'var(--bg-canvas)', border: 'none' }}>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-sec)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                           <Layers size={14} /> עסקאות אמת שנסרקו
+                        </div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--success)' }}>{(analysisResult?.transactions?.length || analysisResult?.comparables?.length || 0)} עסקאות</div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '5px' }}>מתוך מאגר רשות המיסים</div>
+                     </div>
+                     <div className="tactical-card col-4" style={{ background: 'var(--bg-canvas)', border: 'none' }}>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-sec)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                           <Zap size={14} /> פער שוק (Target vs Market)
+                        </div>
+                        <div style={{ fontSize: '1.2rem', fontWeight: 800, color: parseFloat(analysisResult.gap) > 0 ? 'var(--danger)' : 'var(--success)' }}>{analysisResult.gap}%</div>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '5px' }}>מהירות מכירה צפויה: {analysisResult.speed}</div>
+                     </div>
+                   </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                    <div>
+                      <h4 style={{ fontSize: '0.75rem', fontWeight: 800, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                         <List size={16} /> עסקאות אמת אחרונות (500 מ')
+                      </h4>
+                       <div className="table-container" style={{ marginTop: 0, border: 'none', boxShadow: 'none' }}>
+                        <table style={{ background: 'transparent' }}>
+                          <thead>
+                            <tr>
+                              <SortHeader label="כתובת" sortKey="address" currentSort={marketSort} onSort={(k) => setMarketSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} align="right" />
+                              <SortHeader label={"₪/מ\"ר"} sortKey="price" currentSort={marketSort} onSort={(k) => setMarketSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} />
+                              <SortHeader label="תאריך" sortKey="date" currentSort={marketSort} onSort={(k) => setMarketSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} />
+                            </tr>
+                          </thead>
+                          <tbody>
+                             {sortedMarketTransactions.map((comp, idx) => (
+                              <tr key={idx}>
+                                <td>{comp.address}</td>
+                                <td className="mono-number" style={{ fontWeight: 600 }}>₪{comp.price.toLocaleString()}</td>
+                                <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{comp.date}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                    <div>
+                      <h4 style={{ fontSize: '0.75rem', fontWeight: 800, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                         <Layers size={16} /> צנרת תכנון ומתחרים באזור
+                      </h4>
+                      <div className="table-container" style={{ marginTop: 0, border: 'none', boxShadow: 'none' }}>
+                        <table style={{ background: 'transparent' }}>
+                          <thead>
+                            <tr>
+                              <th>פרויקט / סטטוס</th>
+                              <th>יח"ד</th>
+                              <th>מרחק</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {analysisResult.pipelineProjects.map((p, idx) => (
+                              <tr key={idx}>
+                                <td>
+                                  <div style={{ fontWeight: 600 }}>{p.name}</div>
+                                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{p.status}</div>
+                                </td>
+                                <td className="mono-number">{p.units}</td>
+                                <td style={{ fontSize: '0.75rem' }}>{p.distance}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                     <a href="https://nadlan.gov.il" target="_blank" rel="noreferrer" style={{ fontSize: '0.7rem', color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>צפייה במפה הממשלתית ←</a>
+                     <a href="https://www.madlan.co.il" target="_blank" rel="noreferrer" style={{ fontSize: '0.7rem', color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>בדיקת רמות מחיר במדלן ←</a>
+                  </div>
+                </motion.div>
+              )}
+
               <div className="bento-grid">
-                <div className="tactical-card col-3">
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>סה"כ יח"ד</span>
-                  <div className="mono-number" style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0' }}>{inventoryStats.totalUnits}</div>
-                  <div style={{ fontSize: '0.7rem', display: 'flex', justifyContent: 'space-between', color: 'var(--text-sec)' }}>
-                    <span>יזם: {inventoryStats.devUnits} ({inventoryStats.devUnitsPct}%)</span>
-                    <span>בעלים: {inventoryStats.ownerUnits}</span>
-                  </div>
+                <div className="tactical-card col-2">
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>יח"ד</span>
+                  <div className="mono-number" style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.25rem 0' }}>{inventoryStats.totalUnits}</div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>יזם: {inventoryStats.devUnits} | בעלים: {inventoryStats.ownerUnits}</div>
+                </div>
+                <div className="tactical-card col-2">
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>גודל ממוצע</span>
+                  <div className="mono-number" style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.25rem 0' }}>{inventoryStats.avgAptArea.toFixed(1)} <span style={{fontSize: '0.7rem'}}>מ"ר</span></div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>לכלל המלאי</div>
+                </div>
+                <div className="tactical-card col-2">
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>דירות מיוחדות</span>
+                  <div className="mono-number" style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.25rem 0', color: '#F4A261' }}>{inventoryStats.specialAreaPctTotal}%</div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>מסך המ"ר בפרויקט</div>
                 </div>
                 <div className="tactical-card col-3">
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>שטח דירות (מ"ר)</span>
-                  <div className="mono-number" style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0' }}>{inventoryStats.totalArea.toLocaleString()}</div>
-                  <div style={{ fontSize: '0.7rem', display: 'flex', justifyContent: 'space-between', color: 'var(--text-sec)' }}>
-                    <span>יזם: {inventoryStats.devArea.toLocaleString()} ({inventoryStats.devAreaPct}%)</span>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>תמהיל חדרים</span>
+                  <div style={{ marginTop: '0.35rem', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                    {inventoryStats.roomSplit.map(group => (
+                      <div key={group.rooms} style={{ fontSize: '0.6rem', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-sharp)', whiteSpace: 'nowrap', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                          <span style={{ fontWeight: 700 }}>{group.rooms} ח':</span>
+                          <span>{group.count} ({group.pct}%)</span>
+                        </div>
+                        <div style={{ color: 'var(--accent)', fontSize: '0.55rem', fontWeight: 600 }}>
+                          ₪{Math.round(group.avgPrice).toLocaleString()}/מ"ר
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
-                <div className="tactical-card col-3" style={{ borderLeft: '2px solid var(--accent)' }}>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>שווי יזם (ללא מע"מ)</span>
-                  <div className="mono-number success-text" style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0' }}>
-                    ₪{Math.round(inventoryStats.devValueExclVat).toLocaleString()}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{inventoryStats.devValuePct}% מסך שווי הפרויקט</div>
-                </div>
-                <div className="tactical-card col-3" style={{ borderLeft: '2px solid #F4A261' }}>
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>שווי דירות מיוחדות (נקי)</span>
-                  <div className="mono-number" style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0', color: '#F4A261' }}>
-                    ₪{Math.round(inventoryStats.specialValueExclVat).toLocaleString()}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{inventoryStats.specialValuePct}% ממלאי יזם (ללא מע"מ)</div>
                 </div>
                 <div className="tactical-card col-3">
                   <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>מחיר ממוצע למ"ר</span>
-                  <div className="mono-number" style={{ fontSize: '1.5rem', fontWeight: 700, margin: '0.5rem 0' }}>
-                    ₪{Math.round(inventoryStats.avgPricePerSqm).toLocaleString()}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>כולל מע"מ (דירות יזם)</div>
+                  <div className="mono-number" style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.25rem 0' }}>₪{Math.round(inventoryStats.avgPricePerSqm).toLocaleString()}</div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>כולל מע"מ (דירות יזם)</div>
+                </div>
+                {/* Secondary row or extra info */}
+                <div className="tactical-card col-4" style={{ padding: '0.75rem 1rem' }}>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)' }}>שטח כולל: <span className="mono-number" style={{ fontWeight: 700 }}>{inventoryStats.totalArea.toLocaleString()}</span> מ"ר</span>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)' }}>שווי יזם נקי: <span className="mono-number" style={{ fontWeight: 700 }}>₪{Math.round(inventoryStats.devValueExclVat).toLocaleString()}</span></span>
+                   </div>
                 </div>
               </div>
 
               <div className="table-container" style={{ marginTop: 0 }}>
+                {/* Combination Deal Control Panel */}
+                <div style={{
+                  padding: '0.75rem 1rem',
+                  background: activeProject?.isCombinationDeal ? 'rgba(16, 185, 129, 0.06)' : 'var(--bg-elevated)',
+                  borderBottom: '1px solid var(--border-sharp)',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', color: activeProject?.isCombinationDeal ? 'var(--success)' : 'var(--text-pri)' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={Boolean(activeProject?.isCombinationDeal)}
+                        onChange={(e) => updateProject({ isCombinationDeal: e.target.checked })}
+                        style={{ cursor: 'pointer', accentColor: 'var(--accent)', width: '16px', height: '16px' }}
+                      />
+                      <span>עסקת קומבינציה</span>
+                    </label>
+
+                    {activeProject?.isCombinationDeal && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-canvas)', padding: '3px 10px', borderRadius: '4px', border: '1px solid var(--border-sharp)' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)', fontWeight: 600 }}>אחוז בעלי הקרקע:</span>
+                          <input 
+                            type="number" 
+                            min="0" 
+                            max="100" 
+                            step="0.5"
+                            value={activeProject?.combinationLandownerPct ?? 40} 
+                            onChange={(e) => updateProject({ combinationLandownerPct: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) })}
+                            style={{ width: '55px', padding: '2px 4px', fontSize: '0.85rem', fontWeight: 800, textAlign: 'center', background: 'var(--bg-surface)', border: '1px solid var(--accent)', borderRadius: '4px', color: '#F4A261' }}
+                          />
+                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>%</span>
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(16, 185, 129, 0.1)', padding: '3px 10px', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)', fontWeight: 600 }}>אחוז היזם (מחושב):</span>
+                          <span className="mono-number" style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--success)' }}>
+                            {(100 - (activeProject?.combinationLandownerPct ?? 40)).toFixed(1)}%
+                          </span>
+                        </div>
+
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', gap: '10px' }}>
+                          <span>יזם: <strong className="mono-number" style={{ color: 'var(--text-pri)' }}>{inventoryStats.devUnits.toFixed(1)}</strong> יח' ({Math.round(inventoryStats.devArea).toLocaleString()} מ"ר)</span>
+                          <span>בעלים: <strong className="mono-number" style={{ color: 'var(--text-pri)' }}>{inventoryStats.ownerUnits.toFixed(1)}</strong> יח' ({Math.round(inventoryStats.totalArea - inventoryStats.devArea).toLocaleString()} מ"ר)</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {activeProject?.isCombinationDeal && (
+                    <span style={{ fontSize: '0.7rem', color: 'var(--accent)', fontWeight: 600 }}>
+                      * אחוז היזם מוחל אוטומטית על כלל שורות המלאי וחישובי הרווחיות
+                    </span>
+                  )}
+                </div>
+
                 <div style={{ padding: '0.75rem 1rem', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-sharp)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                     <h3 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>ניהול מלאי</h3>
@@ -1487,23 +2062,27 @@ const App = () => {
                     <thead>
                       <tr style={{ background: 'var(--bg-elevated)', borderBottom: '2px solid var(--border-sharp)' }}>
                         <th style={{ width: '35px', padding: '12px 4px', textAlign: 'center' }}>מס'</th>
-                        <th style={{ width: '45px', padding: '12px 4px', textAlign: 'center' }}>קומה</th>
-                        <th style={{ width: '65px', padding: '12px 4px', textAlign: 'center' }}>סוג</th>
-                        <th style={{ width: '90px', padding: '12px 4px', textAlign: 'center' }}>חלק %</th>
-                        <th style={{ width: '85px', padding: '12px 4px', textAlign: 'center' }}>טיפוס</th>
-                        <th style={{ width: '45px', padding: '12px 4px', textAlign: 'center' }}>חדרים</th>
-                        <th style={{ width: '75px', padding: '12px 4px', textAlign: 'center' }}>שטח</th>
-                        <th style={{ width: '80px', padding: '12px 4px', textAlign: 'center', color: 'var(--accent)', fontWeight: 800 }}>מרפסת</th>
+                        <SortHeader label="קומה" sortKey="floor" currentSort={inventorySort} onSort={(k) => setInventorySort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} align="center" style={{ width: '45px' }} />
+                        <SortHeader label="סוג" sortKey="type" currentSort={inventorySort} onSort={(k) => setInventorySort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} align="center" style={{ width: '65px' }} />
+                        <SortHeader label="חלק %" sortKey="contractorSharePct" currentSort={inventorySort} onSort={(k) => setInventorySort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} align="center" style={{ width: '90px' }} />
+                        <SortHeader label="טיפוס" sortKey="category" currentSort={inventorySort} onSort={(k) => setInventorySort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} align="center" style={{ width: '85px' }} />
+                        <SortHeader label="חדרים" sortKey="rooms" currentSort={inventorySort} onSort={(k) => setInventorySort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} align="center" style={{ width: '45px' }} />
+                        <SortHeader label="שטח" sortKey="area" currentSort={inventorySort} onSort={(k) => setInventorySort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} align="center" style={{ width: '75px' }} />
+                        <SortHeader label="מרפסת" sortKey="balcony" currentSort={inventorySort} onSort={(k) => setInventorySort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} align="center" style={{ width: '80px', color: 'var(--accent)', fontWeight: 800 }} />
                         <th style={{ width: '95px', padding: '12px 4px', textAlign: 'center' }}>שטח קבלן</th>
-                        <th style={{ width: '120px', padding: '12px 4px', textAlign: 'center' }}>מחיר (₪)</th>
+                        <SortHeader label="מחיר (₪)" sortKey="price" currentSort={inventorySort} onSort={(k) => setInventorySort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} align="center" style={{ width: '120px' }} />
+                        <SortHeader label={"מחיר למ\"ר"} sortKey="sqmPrice" currentSort={inventorySort} onSort={(k) => setInventorySort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} align="center" style={{ width: '110px' }} />
                         <th style={{ width: '140px', padding: '12px 4px', textAlign: 'center' }}>שווי קבלן</th>
                         <th style={{ width: '65px', padding: '12px 4px', textAlign: 'center' }}>פעולות</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {inventoryData.map((apt, idx) => {
-                        const projectSqmPrice = apt.area > 0 ? (apt.price / apt.area) : 0;
-                        const isOwner = apt.type === 'בעלים';
+                      {sortedInventoryData.map((apt, idx) => {
+                        const isComb = Boolean(activeProject?.isCombinationDeal);
+                        const combDevPct = Math.max(0, Math.min(100, 100 - (Number(activeProject?.combinationLandownerPct) || 0)));
+                        const effectiveShare = isComb ? combDevPct : (apt.contractorSharePct !== undefined ? apt.contractorSharePct : (apt.type === 'יזם' ? 100 : 0));
+                        const projectSqmPrice = apt.area > 0 ? Math.round(apt.price / apt.area) : 0;
+                        const isOwner = isComb ? (combDevPct === 0) : (apt.type === 'בעלים');
                         return (
                           <tr key={apt.id} style={{ background: isOwner ? 'rgba(38, 70, 83, 0.04)' : undefined }}>
                             <td style={{ textAlign: 'center', padding: '6px 4px' }} className="mono-number">{idx + 1}</td>
@@ -1528,17 +2107,26 @@ const App = () => {
                               </select>
                             </td>
                             <td style={{ textAlign: 'center', padding: '6px 4px' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
-                                <input 
-                                  type="number" 
-                                  value={apt.contractorSharePct !== undefined ? apt.contractorSharePct : (apt.type === 'יזם' ? 100 : 0)} 
-                                  onChange={(e) => handleInventoryChange(apt.id, 'contractorSharePct', Number(e.target.value))} 
-                                  className="compact-input mono-number"
-                                  style={{ width: '55px', textAlign: 'center', fontWeight: 600, color: 'var(--accent)', border: '1px solid transparent', background: 'transparent', appearance: 'none', MozAppearance: 'textfield' }} 
-                                  min="0" max="100"
-                                />
-                                <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>%</span>
-                              </div>
+                              {isComb ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }} title="נגזר אוטומטית מעסקת הקומבינציה">
+                                  <span className="mono-number" style={{ fontWeight: 700, color: 'var(--success)', fontSize: '0.85rem' }}>
+                                    {combDevPct.toFixed(1)}
+                                  </span>
+                                  <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>%</span>
+                                </div>
+                              ) : (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                                  <input 
+                                    type="number" 
+                                    value={apt.contractorSharePct !== undefined ? apt.contractorSharePct : (apt.type === 'יזם' ? 100 : 0)} 
+                                    onChange={(e) => handleInventoryChange(apt.id, 'contractorSharePct', Number(e.target.value))} 
+                                    className="compact-input mono-number"
+                                    style={{ width: '55px', textAlign: 'center', fontWeight: 600, color: 'var(--accent)', border: '1px solid transparent', background: 'transparent', appearance: 'none', MozAppearance: 'textfield' }} 
+                                    min="0" max="100"
+                                  />
+                                  <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>%</span>
+                                </div>
+                              )}
                             </td>
                             <td style={{ textAlign: 'center', padding: '6px 4px' }}>
                               <select 
@@ -1587,7 +2175,7 @@ const App = () => {
                               />
                             </td>
                             <td className="mono-number" style={{ fontSize: '0.8rem', color: 'var(--text-sec)', textAlign: 'center', padding: '6px 4px' }}>
-                              {Math.round(apt.area * (apt.contractorSharePct !== undefined ? apt.contractorSharePct : (apt.type === 'יזם' ? 100 : 0)) / 100).toLocaleString()}
+                              {Math.round(apt.area * effectiveShare / 100).toLocaleString()}
                             </td>
                             <td style={{ textAlign: 'center', padding: '6px 4px' }}>
                               <input 
@@ -1598,8 +2186,21 @@ const App = () => {
                                 style={{ width: '100%', fontWeight: 600, color: 'var(--text-pri)', textAlign: 'center', border: '1px solid transparent', background: 'transparent' }} 
                               />
                             </td>
+                            <td style={{ textAlign: 'center', padding: '6px 4px' }}>
+                              <input 
+                                type="number" 
+                                value={projectSqmPrice} 
+                                onChange={(e) => {
+                                  const newSqm = Number(e.target.value) || 0;
+                                  handleInventoryChange(apt.id, 'price', Math.round(newSqm * (apt.area || 0)));
+                                }} 
+                                className="compact-input mono-number" 
+                                style={{ width: '100%', fontWeight: 600, color: 'var(--accent)', textAlign: 'center', border: '1px solid transparent', background: 'transparent' }} 
+                                title="מחיר למ\"ר (שינוי כאן מעדכן את המחיר הכולל)"
+                              />
+                            </td>
                             <td className="mono-number" style={{ fontWeight: 700, color: 'var(--success)', fontSize: '0.85rem', textAlign: 'center', padding: '6px 4px' }}>
-                              ₪{Math.round(apt.price * (apt.contractorSharePct !== undefined ? apt.contractorSharePct : (apt.type === 'יזם' ? 100 : 0)) / 100).toLocaleString()}
+                              ₪{Math.round(apt.price * effectiveShare / 100).toLocaleString()}
                             </td>
                             <td style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                               <button 
@@ -1632,6 +2233,121 @@ const App = () => {
             </div>
           ) : activeTab === 'profit' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              {/* Combination Deal Sensitivity Slider */}
+              <div className="tactical-card" style={{ padding: '1.25rem 1.5rem', background: activeProject?.isCombinationDeal ? 'rgba(16, 185, 129, 0.04)' : 'var(--bg-elevated)', border: activeProject?.isCombinationDeal ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border-sharp)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ background: activeProject?.isCombinationDeal ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-canvas)', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-sharp)', display: 'flex' }}>
+                      <Layers size={20} color={activeProject?.isCombinationDeal ? 'var(--success)' : 'var(--text-muted)'} />
+                    </div>
+                    <div>
+                      <h4 style={{ fontSize: '0.95rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        עסקת קומבינציה — סליידר רגישות אחוזים
+                        {activeProject?.isCombinationDeal && (
+                          <span style={{ padding: '2px 8px', background: 'var(--success)', color: 'var(--bg-canvas)', borderRadius: '4px', fontSize: '0.65rem', fontWeight: 800 }}>
+                            פעיל
+                          </span>
+                        )}
+                      </h4>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+                        כוונון מיידי של אחוז בעלי הקרקע והיזם — כל חישובי המלאי, שווי המכירות, הרווח וה-IRR מתעדכנים אוטומטית
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => updateProject({ isCombinationDeal: !activeProject?.isCombinationDeal })}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: 'var(--radius-sharp)',
+                      border: activeProject?.isCombinationDeal ? '1px solid var(--success)' : '1px solid var(--border-sharp)',
+                      background: activeProject?.isCombinationDeal ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-canvas)',
+                      color: activeProject?.isCombinationDeal ? 'var(--success)' : 'var(--text-sec)',
+                      fontWeight: 700,
+                      fontSize: '0.8rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {activeProject?.isCombinationDeal ? '✓ עסקת קומבינציה פעילה' : '+ הפעל עסקת קומבינציה'}
+                  </button>
+                </div>
+
+                {/* Slider Area */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '0.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-sec)', fontWeight: 600 }}>אחוז בעלי הקרקע (קומבינציה):</span>
+                      <input 
+                        type="number" 
+                        min="0" 
+                        max="100" 
+                        step="0.5"
+                        value={activeProject?.combinationLandownerPct ?? 40} 
+                        onChange={(e) => {
+                          const val = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
+                          updateProject({ isCombinationDeal: true, combinationLandownerPct: val });
+                        }}
+                        style={{ width: '60px', padding: '3px 8px', fontSize: '0.9rem', fontWeight: 800, textAlign: 'center', background: 'var(--bg-canvas)', border: '1px solid var(--accent)', borderRadius: '4px', color: '#F4A261' }}
+                      />
+                      <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-muted)' }}>%</span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-sec)', fontWeight: 600 }}>אחוז היזם הנגזר:</span>
+                      <span className="mono-number" style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--success)' }}>
+                        {(100 - (activeProject?.combinationLandownerPct ?? 40)).toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Range Slider */}
+                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="100" 
+                      step="0.5"
+                      value={activeProject?.combinationLandownerPct ?? 40}
+                      onChange={(e) => {
+                        updateProject({ isCombinationDeal: true, combinationLandownerPct: Number(e.target.value) });
+                      }}
+                      style={{
+                        width: '100%',
+                        accentColor: 'var(--accent)',
+                        cursor: 'pointer',
+                        height: '6px'
+                      }}
+                    />
+                  </div>
+
+                  {/* Visual Split Bar */}
+                  <div style={{ display: 'flex', height: '8px', borderRadius: '4px', overflow: 'hidden', background: 'var(--border-sharp)', marginTop: '2px' }}>
+                    <div 
+                      style={{ 
+                        width: `${100 - (activeProject?.combinationLandownerPct ?? 40)}%`, 
+                        background: 'var(--success)', 
+                        transition: 'width 0.05s ease' 
+                      }} 
+                      title={`יזם: ${(100 - (activeProject?.combinationLandownerPct ?? 40)).toFixed(1)}%`}
+                    />
+                    <div 
+                      style={{ 
+                        width: `${activeProject?.combinationLandownerPct ?? 40}%`, 
+                        background: '#F4A261', 
+                        transition: 'width 0.05s ease' 
+                      }} 
+                      title={`בעלי קרקע: ${(activeProject?.combinationLandownerPct ?? 40).toFixed(1)}%`}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', flexWrap: 'wrap', gap: '4px' }}>
+                    <span style={{ color: 'var(--success)', fontWeight: 600 }}>◄ חלק יזם: {(100 - (activeProject?.combinationLandownerPct ?? 40)).toFixed(1)}% ({inventoryStats.devUnits.toFixed(1)} יח' | {Math.round(inventoryStats.devArea).toLocaleString()} מ"ר | שווי נטו: ₪{Math.round(inventoryStats.devValueExclVat).toLocaleString()})</span>
+                    <span style={{ color: '#F4A261', fontWeight: 600 }}>חלק בעלי קרקע: {(activeProject?.combinationLandownerPct ?? 40).toFixed(1)}% ({inventoryStats.ownerUnits.toFixed(1)} יח' | {Math.round(inventoryStats.totalArea - inventoryStats.devArea).toLocaleString()} מ"ר | שווי: ₪{Math.round(inventoryStats.ownerValueInclVat).toLocaleString()}) ►</span>
+                  </div>
+                </div>
+              </div>
+
               <div className="bento-grid">
                 {(() => {
                   const totalProfit = Math.round(inventoryStats.devValueExclVat) - budgetStats.grandTotal;
@@ -1800,9 +2516,33 @@ const App = () => {
                   <div className="col-4" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderLeft: '1px solid var(--border-sharp)', paddingLeft: '1.5rem' }}>
                     <h4 style={{ fontSize: '0.75rem', color: 'var(--text-sec)', marginBottom: '0.5rem' }}>הגדרת וולטיליות (סטיית תקן)</h4>
                     
+                    <div style={{ display: 'flex', gap: '4px', marginBottom: '1rem' }}>
+                      {Object.entries(VOL_PRESETS).map(([key, p]) => (
+                        <button 
+                          key={key}
+                          onClick={() => setMcConfig({ ...mcConfig, ...p })}
+                          style={{ 
+                            flex: 1, 
+                            fontSize: '0.6rem', 
+                            padding: '4px', 
+                            background: 'var(--bg-canvas)', 
+                            border: '1px solid var(--border-sharp)',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            color: 'var(--text-sec)',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.target.style.borderColor = 'var(--accent)'}
+                          onMouseLeave={(e) => e.target.style.borderColor = 'var(--border-sharp)'}
+                        >
+                          {p?.id?.toUpperCase() || key.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
+
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                        <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>עלויות בניה</label>
+                        <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>עלויות בניה (מדד תשומות)</label>
                         <span className="mono-number" style={{ fontSize: '0.75rem', fontWeight: 700 }}>{mcConfig.costVol}%</span>
                       </div>
                       <input 
@@ -1815,7 +2555,7 @@ const App = () => {
 
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                        <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>מחיר מכירה ממוצע</label>
+                        <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>מחירי מכירה (מדד מחירי דיור)</label>
                         <span className="mono-number" style={{ fontSize: '0.75rem', fontWeight: 700 }}>{mcConfig.revVol}%</span>
                       </div>
                       <input 
@@ -1837,6 +2577,15 @@ const App = () => {
                         onChange={(e) => setMcConfig({...mcConfig, interestVol: parseFloat(e.target.value)})}
                         style={{ width: '100%', accentColor: 'var(--accent)' }}
                       />
+                    </div>
+                    
+                    <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'var(--bg-canvas)', borderRadius: '4px', fontSize: '0.65rem', border: '1px dashed var(--border-sharp)' }}>
+                      <p style={{ color: 'var(--text-muted)', marginBottom: '4px' }}>ממוצעי סטיות תקן (Israel):</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '4px' }}>
+                        <span style={{ fontWeight: 700 }}>10 שנים:</span> <span>דיור ~6%, תשומות ~4%</span>
+                        <span style={{ fontWeight: 700 }}>5 שנים:</span> <span>דיור ~8%, תשומות ~5%</span>
+                        <span style={{ fontWeight: 700 }}>1 שנה:</span> <span>דיור ~12%, תשומות ~8%</span>
+                      </div>
                     </div>
                   </div>
 
@@ -2366,7 +3115,7 @@ const App = () => {
 
                 <div className="tactical-card col-6" style={{ borderLeft: '3px solid var(--accent)' }}>
                   <h3 style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '1.5rem', color: 'var(--text-sec)' }}>יחס שטחים לשטח עילי (Gross vs Net)</h3>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '2rem' }}>
                     <div>
                       <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>יחס סה"כ דירות לשטח עילי</span>
                       <div className="mono-number" style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--accent)' }}>{(planningStats.totalEfficiencyAG * 100).toFixed(1)}%</div>
@@ -2376,6 +3125,11 @@ const App = () => {
                       <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>יחס דירות יזם לשטח עילי</span>
                       <div className="mono-number" style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--accent)' }}>{(planningStats.devEfficiencyAG * 100).toFixed(1)}%</div>
                       <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>אחוז שגשוג (שטח מכיר) מעל הקרקע</div>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>יחס תת-קרקעי לשטח עילי</span>
+                      <div className="mono-number" style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--accent)' }}>{(planningStats.ugToAgRatio * 100).toFixed(1)}%</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>יחס מרתפים/על-קרקע</div>
                     </div>
                   </div>
                 </div>
@@ -2397,7 +3151,7 @@ const App = () => {
                 </div>
               </div>
             </div>
-          ) : activeTab === 'portfolio' ? (
+                    ) : activeTab === 'portfolio' ? (
               <div style={{ display:'flex', flexDirection:'column', gap:'1.5rem' }}>
                 {/* Portfolio Summary Dashboard */}
                 <div className="bento-grid">
@@ -2436,105 +3190,73 @@ const App = () => {
                         <div className="tactical-card col-3">
                           <span 
                             style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}
-                            data-tooltip="שיעור התשואה הפנימי הממוצע של כלל הפרויקטים (Internal Rate of Return). המדד המרכזי שבוחן את רווחיות הפורטפוליו לאורך זמן וביחס לסיכון."
+                            data-tooltip="שיעור התשואה הפנימי הממוצע של כלל הפרויקטים (Internal Rate of Return). המדד המרכזי שבוחן את רווחיות הפורטפוליו לאורך זמן."
                           >
-                            IRR פורטפוליו <Info size={10} />
+                            IRR ממוצע <Info size={10} />
                           </span>
-                          <div className="mono-number success-text" style={{ fontSize: '1.4rem', fontWeight: 700, margin: '0.4rem 0' }}>{avgIRR ? avgIRR.toFixed(1)+'%' : 'N/A'}</div>
-                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>יעד מנהלים: {'>'}18%.</div>
+                          <div className="mono-number accent-text" style={{ fontSize: '1.4rem', fontWeight: 700, margin: '0.4rem 0' }}>{avgIRR ? avgIRR.toFixed(1) + '%' : 'N/A'}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>שקלול תשואה ממוצעת לפרויקטים.</div>
                         </div>
                       </>
                     );
                   })()}
                 </div>
 
-                {/* Project Comparison Console */}
-                <div className="table-container">
-                  <div style={{ padding: '0.75rem 1rem', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-sharp)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                      <h3 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>מטריצת השוואת פורטפוליו</h3>
-                      <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-canvas)', padding: '2px', borderRadius: '6px', border: '1px solid var(--border-sharp)' }}>
-                        <button 
-                          onClick={() => setPortfolioCompareMode('financial')}
-                          style={{
-                            padding: '4px 10px',
-                            fontSize: '0.6rem',
-                            fontWeight: 700,
-                            borderRadius: '4px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            background: portfolioCompareMode === 'financial' ? 'var(--accent)' : 'transparent',
-                            color: portfolioCompareMode === 'financial' ? '#fff' : 'var(--text-sec)',
-                            transition: 'all 0.2s'
-                          }}
-                        >
-                          כלכלי
-                        </button>
-                        <button 
-                          onClick={() => setPortfolioCompareMode('planning')}
-                          style={{
-                            padding: '4px 10px',
-                            fontSize: '0.6rem',
-                            fontWeight: 700,
-                            borderRadius: '4px',
-                            border: 'none',
-                            cursor: 'pointer',
-                            background: portfolioCompareMode === 'planning' ? 'var(--accent)' : 'transparent',
-                            color: portfolioCompareMode === 'planning' ? '#fff' : 'var(--text-sec)',
-                            transition: 'all 0.2s'
-                          }}
-                        >
-                          תכנוני
-                        </button>
-                      </div>
+                {/* Portfolio Table */}
+                <div className="tactical-card" style={{ padding: '0', overflow: 'hidden' }}>
+                  <div style={{ padding:'16px', borderBottom:'1px solid var(--border-sharp)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <h3 style={{ fontSize:'0.85rem', fontWeight:700, margin:0 }}>השוואת פרויקטים בפורטפוליו</h3>
+                    <div className="segmented-control">
+                      <button 
+                        className={portfolioCompareMode === 'financial' ? 'active' : ''} 
+                        onClick={() => setPortfolioCompareMode('financial')}
+                      >פיננסי</button>
+                      <button 
+                        className={portfolioCompareMode === 'planning' ? 'active' : ''} 
+                        onClick={() => setPortfolioCompareMode('planning')}
+                      >תכנוני</button>
                     </div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>N = {projects.length} פרויקטים</div>
                   </div>
-                  <div style={{ overflowX:'auto' }}>
-                    <table style={{ width:'100%', borderCollapse:'collapse' }}>
-                      <thead>
-                        <tr style={{ background:'var(--bg-canvas)', color:'var(--text-sec)', fontSize:'0.65rem', textTransform:'uppercase' }}>
-                          <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>פרויקט</th>
-                          {portfolioCompareMode === 'financial' ? (
-                            <>
-                              <th style={{ padding:'10px 16px', textAlign:'center', borderBottom:'1px solid var(--border-sharp)' }}>יח' (יזם)</th>
-                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>עלות</th>
-                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)', fontSize:'0.55rem', opacity:0.8 }}>הוצ/מ"ר</th>
-                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>הכנסה</th>
-                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)', fontSize:'0.55rem', opacity:0.8 }}>הכנסה/מ"ר</th>
-                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>רווח</th>
-                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>רווחיות</th>
-                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>הון עצמי</th>
-                              <th 
-                                style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}
-                                data-tooltip="ROE (Return on Equity): היחס בין הרווח הנקי להון העצמי שהושקע."
-                              >
-                                ROE <Info size={10} />
-                              </th>
-                              <th 
-                                style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}
-                                data-tooltip="IRR (Internal Rate of Return): שיעור התשואה השנתי הממוצע של הפרויקט בהתבסס על תזרימי המזומנים."
-                              >
-                                IRR <Info size={10} />
-                              </th>
-                            </>
-                          ) : (
-                            <>
-                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>שטח עילי (מ"ר)</th>
-                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>תת-קרקעי</th>
-                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>שטח דירות</th>
-                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>שטח יזם</th>
-                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>יעילות עילי</th>
-                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>יעילות יזם/עילי</th>
-                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>יעילות פרויקט</th>
-                              <th style={{ padding:'10px 16px', textAlign:'right', borderBottom:'1px solid var(--border-sharp)' }}>יעילות יזם</th>
-                            </>
-                          )}
-                        </tr>
-                      </thead>
+                  
+                  <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                    <thead>
+                      <tr style={{ background:'var(--bg-card)', fontSize:'0.65rem', color:'var(--text-sec)', textTransform:'uppercase' }}>
+                        <th style={{ width: '40px', borderBottom:'1px solid var(--border-sharp)' }}></th>
+                        {portfolioCompareMode === 'financial' ? (
+                          <>
+                            <SortHeader label="פרויקט" sortKey="name" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} align="right" tooltip="שם הפרויקט בפורטפוליו" />
+                            <SortHeader label="יח' (יזם)" sortKey="totalUnits" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} align="center" tooltip='סה"כ יחידות דיור בפרויקט (מתוכן יחידות לשיווק יזם)' />
+                            <SortHeader label="עלות" sortKey="totalCost" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} tooltip="סך תקציב הפרויקט כולל עלויות בנייה, קרקע, עקיפות ומימון" />
+                            <SortHeader label={"הוצ/מ\"ר"} sortKey="costPerSqm" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} style={{ fontSize:'0.55rem', opacity:0.8 }} tooltip='עלות פרויקט כוללת מחולקת בשטח דירות יזם' />
+                            <SortHeader label="הכנסה" sortKey="revenue" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} tooltip='סך הכנסות יזם משוערות ממכירת דירות, ללא מע"מ' />
+                            <SortHeader label={"הכנסה/מ\"ר"} sortKey="revPerSqm" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} style={{ fontSize:'0.55rem', opacity:0.8 }} tooltip='הכנסות יזם ללא מע"מ מחולקות בשטח דירות יזם' />
+                            <SortHeader label={"מחיר ממוצע/מ\"ר"} sortKey="totalAvgPricePerSqm" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} style={{ fontSize:'0.55rem', color: 'var(--accent)' }} tooltip='מחיר ממוצע למ"ר כולל מע"מ לכלל הדירות בפרויקט' />
+                            <SortHeader label="רווח" sortKey="profit" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} tooltip='סך הכנסות יזם פחות סך עלויות פרויקט (ללא מע"מ)' />
+                            <SortHeader label="רווחיות" sortKey="profitPct" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} tooltip="אחוז הרווח ביחס לסך עלות הפרויקט (יעד מומלץ: מעל 20%)" />
+                            <SortHeader label="הון עצמי" sortKey="equity" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} tooltip="הון עצמי נדרש לפרויקט לפי אחוז ההון שהוגדר מתוך העלות" />
+                            <SortHeader label="ROE" sortKey="annualRoe" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} tooltip="תשואה שנתית על ההון העצמי ביחס למשך שנות הבנייה" />
+                            <SortHeader label="IRR" sortKey="irr" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} tooltip="שיעור התשואה הפנימי (Internal Rate of Return) המשקלל את עיתוי תזרימי המזומנים" />
+                          </>
+                        ) : (
+                          <>
+                            <SortHeader label="פרויקט" sortKey="name" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} align="right" tooltip="שם הפרויקט בפורטפוליו" />
+                            <SortHeader label={"שטח עילי (מ\"ר)"} sortKey="planning.ag" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} tooltip='סך שטח בנייה עילית ברוטו (מתוך סעיף 3-4 בתקציב)' />
+                            <SortHeader label="תת-קרקעי" sortKey="planning.ug" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} tooltip='סך שטח בנייה תת-קרקעית ברוטו (מתוך סעיף 3-3 בתקציב)' />
+                            <SortHeader label="יחס תת-קרקעי/עילי" sortKey="planning.ugToAgRatio" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} tooltip="היחס באחוזים בין שטח תת-קרקעי לשטח עילי" />
+                            <SortHeader label="שטח דירות" sortKey="planning.taa" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} tooltip="סך השטח הנקי (נטו) של כלל הדירות במלאי" />
+                            <SortHeader label="שטח יזם" sortKey="planning.daa" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} tooltip="סך שטח נטו של דירות לשיווק יזם" />
+                            <SortHeader label="יעילות עילי" sortKey="planning.totalEffAG" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} tooltip="יחס נטו/ברוטו עילי: שטח דירות חלקי שטח עילי" />
+                            <SortHeader label="יעילות יזם/עילי" sortKey="planning.devEffAG" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} tooltip="שטח דירות יזם חלקי שטח עילי" />
+                            <SortHeader label="יעילות פרויקט" sortKey="planning.totalEffTotal" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} tooltip="יחס נטו/ברוטו כולל: שטח דירות חלקי סך שטח הבנייה (עילי ותת-קרקעי)" />
+                            <SortHeader label="יעילות יזם" sortKey="planning.devEffTotal" currentSort={portfolioSort} onSort={(k) => setPortfolioSort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} tooltip="שטח דירות יזם חלקי סך שטח הבנייה (עילי ותת-קרקעי)" />
+                          </>
+                        )}
+                      </tr>
+                    </thead>
                       <tbody className="tactical-table">
                         {allProjectsKPIs.map((kpi,i)=>{
                           const col = PROJ_COLORS[kpi.colorIdx % PROJ_COLORS.length];
+                          const projectIdx = projects.findIndex(p => p.id === kpi.id);
                           const fmtM = v => { 
                             const m = Math.abs(v)/1e6; 
                             const s = v < 0 ? '-' : ''; 
@@ -2542,10 +3264,54 @@ const App = () => {
                           };
                           return (
                             <tr key={kpi.id} onClick={()=>{ setActiveProjectId(kpi.id); setActiveTab('budget'); }} style={{ cursor:'pointer' }}>
+                              <td style={{ padding:'8px 4px', width: '40px' }} onClick={(e) => e.stopPropagation()}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'center', opacity: portfolioSort.key ? 0.2 : 1 }}>
+                                  <button 
+                                    onClick={() => moveProject(projectIdx, -1)}
+                                    disabled={projectIdx === 0 || !!portfolioSort.key}
+                                    style={{ background:'none', border:'none', padding:0, cursor: (projectIdx === 0 || !!portfolioSort.key) ? 'not-allowed' : 'pointer', display:'flex', color:'var(--text-sec)' }}
+                                    title={portfolioSort.key ? "ביטול המיון מאפשר סידור ידני" : "הזז למעלה"}
+                                  ><ChevronUp size={14} /></button>
+                                  <button 
+                                    onClick={() => moveProject(projectIdx, 1)}
+                                    disabled={projectIdx === projects.length - 1 || !!portfolioSort.key}
+                                    style={{ background:'none', border:'none', padding:0, cursor: (projectIdx === projects.length - 1 || !!portfolioSort.key) ? 'not-allowed' : 'pointer', display:'flex', color:'var(--text-sec)' }}
+                                    title={portfolioSort.key ? "ביטול המיון מאפשר סידור ידני" : "הזז למטה"}
+                                  ><ChevronDown size={14} /></button>
+                                </div>
+                              </td>
                               <td style={{ padding:'12px 16px' }}>
                                 <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
                                   <div style={{ width:'10px', height:'10px', borderRadius:'2px', background:col }}/>
-                                  <span style={{ fontWeight: 700 }}>{kpi.name}</span>
+                                  <input 
+                                    value={kpi.name}
+                                    onChange={(e) => {
+                                      const newName = e.target.value;
+                                      setProjects(prev => prev.map(p => p.id === kpi.id ? { ...p, name: newName } : p));
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{
+                                      background: 'transparent',
+                                      border: 'none',
+                                      borderBottom: '1px solid transparent',
+                                      fontWeight: 700,
+                                      color: 'var(--text-pri)',
+                                      fontSize: '0.85rem',
+                                      textAlign: 'right',
+                                      outline: 'none',
+                                      width: '100%',
+                                      padding: '2px 0',
+                                      cursor: 'text'
+                                    }}
+                                    onFocus={(e) => {
+                                      e.target.style.borderBottom = '1px solid var(--accent)';
+                                      e.target.style.background = 'var(--bg-canvas)';
+                                    }}
+                                    onBlur={(e) => {
+                                      e.target.style.borderBottom = '1px solid transparent';
+                                      e.target.style.background = 'transparent';
+                                    }}
+                                  />
                                 </div>
                               </td>
                               {portfolioCompareMode === 'financial' ? (
@@ -2555,6 +3321,7 @@ const App = () => {
                                   <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', fontSize:'0.75rem', color:'var(--text-muted)' }}>{kpi.devArea > 0 ? Math.round(kpi.totalCost / kpi.devArea).toLocaleString() : '—'}</td>
                                   <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', color:'var(--accent)' }}>{fmtM(kpi.revenue)}</td>
                                   <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', fontSize:'0.75rem', color:'var(--text-muted)' }}>{kpi.devArea > 0 ? Math.round(kpi.revenue / kpi.devArea).toLocaleString() : '—'}</td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', fontSize:'0.75rem', color:'var(--accent)', fontWeight: 600 }}>{kpi.totalAvgPricePerSqm > 0 ? Math.round(kpi.totalAvgPricePerSqm).toLocaleString() : '—'}</td>
                                   <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', fontWeight:700, color: kpi.profit >= 0 ? 'var(--accent)' : 'var(--danger)' }}>{fmtM(kpi.profit)}</td>
                                   <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right' }}>
                                     <span style={{ padding: '2px 6px', borderRadius: '4px', background: kpi.profitPct >= 20 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)', color: kpi.profitPct >= 20 ? 'var(--accent)' : 'var(--danger)' }}>
@@ -2569,6 +3336,7 @@ const App = () => {
                                 <>
                                   <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right' }}>{kpi.planning.ag.toLocaleString()}</td>
                                   <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right' }}>{kpi.planning.ug.toLocaleString()}</td>
+                                  <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right' }}>{(kpi.planning.ugToAgRatio * 100).toFixed(1)}%</td>
                                   <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right' }}>{kpi.planning.taa.toLocaleString()}</td>
                                   <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right', color:'var(--accent)' }}>{kpi.planning.daa.toLocaleString()}</td>
                                   <td className="mono-number" style={{ padding:'12px 16px', textAlign:'right' }}>{(kpi.planning.totalEffAG * 100).toFixed(1)}%</td>
@@ -2583,6 +3351,7 @@ const App = () => {
                       </tbody>
                       <tfoot>
                         <tr style={{ background:'var(--bg-canvas)', fontWeight:800, color:'var(--text-pri)' }}>
+                          <td></td>
                           <td style={{ padding:'12px 16px' }}>סה"כ פורטפוליו</td>
                           {portfolioCompareMode === 'financial' ? (
                             <>
@@ -2591,6 +3360,11 @@ const App = () => {
                               <td className="mono-number" style={{ textAlign:'right', fontSize:'0.75rem', color:'var(--text-muted)' }}>{(()=> { const tC=allProjectsKPIs.reduce((s,p)=>s+p.totalCost,0); const tA=allProjectsKPIs.reduce((s,p)=>s+p.devArea,0); return tA > 0 ? Math.round(tC/tA).toLocaleString() : '—'; })()}</td>
                               <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.revenue,0); return (t/1e6).toFixed(1)+'M'; })()}</td>
                               <td className="mono-number" style={{ textAlign:'right', fontSize:'0.75rem', color:'var(--text-muted)' }}>{(()=> { const tR=allProjectsKPIs.reduce((s,p)=>s+p.revenue,0); const tA=allProjectsKPIs.reduce((s,p)=>s+p.devArea,0); return tA > 0 ? Math.round(tR/tA).toLocaleString() : '—'; })()}</td>
+                              <td className="mono-number" style={{ textAlign:'right', fontSize:'0.75rem', color:'var(--accent)' }}>{(()=> { 
+                                const tV=allProjectsKPIs.reduce((s,p)=>s+(p.totalAvgPricePerSqm * p.totalArea),0); 
+                                const tA=allProjectsKPIs.reduce((s,p)=>s+p.totalArea,0); 
+                                return tA > 0 ? Math.round(tV/tA).toLocaleString() : '—'; 
+                              })()}</td>
                               <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.profit,0); return (t/1e6).toFixed(1)+'M'; })()}</td>
                               <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const tC=allProjectsKPIs.reduce((s,p)=>s+p.totalCost,0); const tP=allProjectsKPIs.reduce((s,p)=>s+p.profit,0); return (tP/tC*100).toFixed(1)+'%'; })()}</td>
                               <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.equity,0); return (t/1e6).toFixed(1)+'M'; })()}</td>
@@ -2600,6 +3374,11 @@ const App = () => {
                             <>
                               <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.planning.ag,0); return t.toLocaleString(); })()}</td>
                               <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.planning.ug,0); return t.toLocaleString(); })()}</td>
+                              <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { 
+                                const tAG=allProjectsKPIs.reduce((s,p)=>s+p.planning.ag,0); 
+                                const tUG=allProjectsKPIs.reduce((s,p)=>s+p.planning.ug,0); 
+                                return tAG > 0 ? (tUG/tAG*100).toFixed(1)+'%' : '—'; 
+                              })()}</td>
                               <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.planning.taa,0); return t.toLocaleString(); })()}</td>
                               <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { const t=allProjectsKPIs.reduce((s,p)=>s+p.planning.daa,0); return t.toLocaleString(); })()}</td>
                               <td className="mono-number" style={{ textAlign:'right' }}>{(()=> { 
@@ -2630,105 +3409,127 @@ const App = () => {
                       </tfoot>
                     </table>
                   </div>
-                </div>
 
                 {/* Portfolio Risk & Sensitivity Analysis */}
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1.5rem', marginTop: '1rem' }}>
-                  {/* Portfolio Sensitivity Matrix Row */}
-                  <div className="tactical-card" style={{ padding: '1.5rem', background: 'var(--bg-elevated)' }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:'1.5rem' }}>
-                      <div>
-                        <h3 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>מטריצת רגישות פורטפוליו (Aggregated)</h3>
-                        <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>השפעת שינויי שוק גלובליים על הרווח הכולל (מיליוני ש"ח)</p>
-                      </div>
-                      <div style={{ fontSize: '0.65rem', background:'var(--bg-canvas)', padding:'4px 8px', borderRadius:'4px', border:'1px solid var(--border-sharp)', display:'flex', gap:'8px' }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:'4px' }}><div style={{ width:8, height:8, background:'var(--accent)', borderRadius:2 }}/> רווח</div>
-                        <div style={{ display:'flex', alignItems:'center', gap:'4px' }}><div style={{ width:8, height:8, background:'var(--danger)', borderRadius:2 }}/> הפסד</div>
-                      </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginTop: '1.5rem' }}>
+                  
+                  {/* Portfolio Sensitivity Matrix */}
+                  <div className="tactical-card" style={{ padding: '1.5rem', background: 'var(--bg-elevated)', border: '1px solid var(--border-soft)' }}>
+                    <div style={{ marginBottom: '1.5rem' }}>
+                      <h3 style={{ fontSize: '0.9rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Activity size={16} color="var(--primary)" />
+                        מטריצת רגישות פורטפוליו
+                      </h3>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>השפעת שינויים גלובליים על הרווחיות הכוללת (מיליוני ש"ח)</p>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '4px', textAlign: 'center' }}>
-                      {/* Matrix Header (Columns - Cost) */}
-                      <div />
-                      {[-10, -5, 0, 5, 10].map(c => (
-                        <div key={c} style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-sec)', paddingBottom: '8px' }}>
-                          עלות {c > 0 ? '+' : ''}{c}%
-                        </div>
-                      ))}
-
-                      {/* Matrix Rows (Revenue) */}
-                      {[-10, -5, 0, 5, 10].map((r, rIdx) => (
-                        <React.Fragment key={rIdx}>
-                          <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-sec)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: '8px' }}>
-                            הכנסה {r > 0 ? '+' : ''}{r}%
-                          </div>
-                          {portfolioSensitivityData[rIdx].map((profit, cIdx) => {
-                            const valM = profit / 1e6;
-                            const isLoss = valM < 0;
-                            const baseProfit = portfolioSensitivityData[2][2];
-                            const ratio = profit / (Math.abs(baseProfit) || 1);
-                            const opacity = Math.min(1, Math.max(0.1, Math.abs(ratio) * 0.5));
-                            
-                            return (
-                              <div 
-                                key={cIdx} 
-                                style={{ 
-                                  background: isLoss ? `rgba(239, 68, 68, ${opacity})` : `rgba(16, 185, 129, ${opacity})`,
-                                  color: '#fff',
-                                  padding: '12px 4px',
-                                  borderRadius: '4px',
-                                  fontSize: '0.75rem',
-                                  fontWeight: 800,
-                                  border: r === 0 && ([-10, -5, 0, 5, 10])[cIdx] === 0 ? '2px solid #fff' : 'none',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  position: 'relative'
-                                }}
-                              >
-                                {valM.toFixed(1)}M
-                                {r === 0 && ([-10, -5, 0, 5, 10])[cIdx] === 0 && (
-                                  <div style={{ position:'absolute', top:-12, fontSize:'0.5rem', fontWeight:400, color:'var(--text-muted)' }}>PROJECTED</div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </React.Fragment>
-                      ))}
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '4px' }}>
+                        <thead>
+                          <tr>
+                            <th style={{ padding: '8px', fontSize: '0.65rem', color: 'var(--text-muted)', textAlign: 'center' }}>שינוי בהכנסה \ בעלות</th>
+                            {[-10, -5, 0, 5, 10].map(v => (
+                              <th key={v} style={{ padding: '8px', fontSize: '0.65rem', fontWeight: 700, textAlign: 'center' }}>{v > 0 ? '+' : ''}{v}%</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[-10, -5, 0, 5, 10].map(revShift => (
+                            <tr key={revShift}>
+                              <td style={{ padding: '8px', fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-sec)', textAlign: 'right' }}>{revShift > 0 ? '+' : ''}{revShift}% הכנסות</td>
+                              {[-10, -5, 0, 5, 10].map(costShift => {
+                                const totalProfit = allProjectsKPIs.reduce((sum, p) => {
+                                  const baseIncome = p.revenue || 0;
+                                  const baseCost = p.totalCost || 0;
+                                  const shiftedIncome = baseIncome * (1 + revShift / 100);
+                                  const shiftedCost = baseCost * (1 + costShift / 100);
+                                  return sum + (shiftedIncome - shiftedCost);
+                                }, 0);
+                                const valM = totalProfit / 1e6;
+                                return (
+                                  <td key={costShift} style={{ 
+                                    padding: '10px 4px', 
+                                    textAlign: 'center', 
+                                    fontSize: '0.75rem', 
+                                    fontWeight: 700,
+                                    borderRadius: '4px',
+                                    background: valM < 0 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(34, 197, 94, 0.1)',
+                                    color: valM < 0 ? 'var(--danger)' : 'var(--accent)',
+                                    border: '1px solid var(--border-sharp)'
+                                  }}>
+                                    {valM.toFixed(1)}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
 
-                  {/* Portfolio Monte Carlo Simulation UI */}
-                  <div className="tactical-card" style={{ padding: '1.5rem', background: 'var(--bg-elevated)' }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.5rem' }}>
-                      <h3 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>סימולציית מונטה-קרלו (פורטפוליו)</h3>
+                  {/* Portfolio Monte Carlo */}
+                  <div className="tactical-card" style={{ padding: '1.5rem', background: 'var(--bg-elevated)', border: '1px solid var(--border-soft)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+                      <div>
+                        <h3 style={{ fontSize: '0.9rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <PlayCircle size={16} color="var(--primary)" />
+                          סימולציית מונטה קרלו (Portfolio)
+                        </h3>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>ניתוח הסתברותי של ביצועי הפורטפוליו</p>
+                      </div>
                       <button 
-                        onClick={runPortfolioSimulation}
-                        disabled={isPortfolioSimulating}
-                        className="tactical-button"
-                        style={{ padding: '6px 14px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem' }}
+                        onClick={() => runPortfolioSimulation()}
+                        style={{ padding: '8px 16px', background: 'var(--primary)', color: 'white', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', border: 'none', display: 'flex', alignItems: 'center', gap: '6px' }}
                       >
-                        {isPortfolioSimulating ? <Loader size={12} className="spin" /> : <Zap size={12} />}
-                        {isPortfolioSimulating ? 'מעבד...' : 'הרץ סימולציה (1,000 תרחישים)'}
+                        הפעל סימולציה
                       </button>
                     </div>
 
-                    {!portfolioMcResults ? (
-                      <div style={{ height: '220px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--border-sharp)', borderRadius: '8px', background: 'var(--bg-canvas)' }}>
-                        <ShieldAlert size={32} style={{ color: 'var(--text-muted)', marginBottom: '1rem', opacity: 0.5 }} />
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>טרם הורצה סימולציה עבור הפורטפוליו המצטבר.</span>
-                        <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '4px' }}>הרץ סימולציה לבדיקת התפלגות רווחים בשינויי שוק קורלטיביים.</span>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '1.5rem', background: 'var(--bg-canvas)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border-sharp)' }}>
+                      <div>
+                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>בחירת תקופת סטיית תקן</label>
+                        <select 
+                          value={mcConfig.preset} 
+                          onChange={(e) => {
+                            const newPreset = e.target.value;
+                            const params = VOL_PRESETS[newPreset];
+                            setMcConfig(prev => ({ 
+                              ...prev, 
+                              preset: newPreset,
+                              costVol: params.costVol,
+                              revVol: params.revVol,
+                              interestVol: params.interestVol
+                            }));
+                          }}
+                          style={{ width: '100%', background: 'transparent', border: '1px solid var(--border-sharp)', borderRadius: '4px', padding: '4px', fontSize: '0.7rem' }}
+                        >
+                          {Object.entries(VOL_PRESETS).map(([key, val]) => (
+                            <option key={key} value={key}>{val.label}</option>
+                          ))}
+                        </select>
                       </div>
-                    ) : (
+                      <div>
+                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>מספר הרצות</label>
+                        <input 
+                          type="number" 
+                          value={mcConfig.iterations}
+                          onChange={(e) => setMcConfig(prev => ({ ...prev, iterations: parseInt(e.target.value) }))}
+                          style={{ width: '100%', background: 'transparent', border: '1px solid var(--border-sharp)', borderRadius: '4px', padding: '4px', fontSize: '0.7rem' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>רמת ביטחון</label>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, padding: '4px' }}>95% Confidence</div>
+                      </div>
+                    </div>
+
+                    {portfolioMcResults && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                           <div style={{ background: 'var(--bg-canvas)', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-sharp)' }}>
                             <span style={{ fontSize: '0.55rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>תוחלת רווח (Mean)</span>
-                            <div className="mono-number" style={{ fontSize: '1rem', fontWeight: 800, marginTop: '4px', color:'var(--accent)' }}>₪{(portfolioMcResults.stats.meanProfit/1e6).toFixed(1)}M</div>
-                          </div>
-                          <div style={{ background: 'var(--bg-canvas)', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-sharp)' }}>
-                            <span style={{ fontSize: '0.55rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>סיכון קצה (P5)</span>
-                            <div className="mono-number" style={{ fontSize: '1rem', fontWeight: 800, marginTop: '4px', color:'var(--danger)' }}>₪{(portfolioMcResults.stats.p5/1e6).toFixed(1)}M</div>
+                            <div className="mono-number" style={{ fontSize: '1rem', fontWeight: 800, marginTop: '4px' }}>₪{(portfolioMcResults.stats.mean/1e6).toFixed(1)}M</div>
                           </div>
                           <div style={{ background: 'var(--bg-canvas)', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-sharp)' }}>
                             <span style={{ fontSize: '0.55rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>חציון (P50)</span>
@@ -2787,6 +3588,126 @@ const App = () => {
               </div>
           ) : null}
         </motion.div>
+      </AnimatePresence>
+
+      {/* Explanation Modal */}
+      <AnimatePresence>
+        {explanationModal && (() => {
+          const info = EXPLANATIONS[explanationModal];
+          if (!info) return null;
+          return (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setExplanationModal(null)}
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(15, 23, 42, 0.65)',
+                backdropFilter: 'blur(8px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 9999,
+                padding: '20px'
+              }}
+            >
+              <motion.div
+                initial={{ scale: 0.95, y: 15 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.95, y: 15 }}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  background: 'var(--bg-elevated, #1e293b)',
+                  border: '1px solid var(--border-sharp, #334155)',
+                  borderRadius: '12px',
+                  width: '100%',
+                  maxWidth: '500px',
+                  boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.4)',
+                  padding: '24px',
+                  direction: 'rtl',
+                  textAlign: 'right'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid var(--border-sharp, #334155)', paddingBottom: '12px' }}>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, color: 'var(--text-pri, #f8fafc)' }}>
+                    {info.title}
+                  </h3>
+                  <button 
+                    onClick={() => setExplanationModal(null)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted, #94a3b8)',
+                      cursor: 'pointer',
+                      fontSize: '1.2rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '4px',
+                      borderRadius: '4px',
+                      transition: 'color 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-pri)'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
+                  >
+                    ✕
+                  </button>
+                </div>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div>
+                    <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent, #38bdf8)', textTransform: 'uppercase', marginBottom: '6px' }}>הסבר ומטרה</h4>
+                    <p style={{ fontSize: '0.9rem', color: 'var(--text-sec, #cbd5e1)', lineHeight: 1.5, margin: 0 }}>
+                      {info.desc}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--accent, #38bdf8)', textTransform: 'uppercase', marginBottom: '6px' }}>נוסחת חישוב</h4>
+                    <div style={{ 
+                      background: 'var(--bg-canvas, #0f172a)', 
+                      padding: '12px', 
+                      borderRadius: '6px', 
+                      border: '1px solid var(--border-sharp, #1e293b)',
+                      fontFamily: 'monospace, sans-serif',
+                      fontSize: '0.85rem',
+                      color: 'var(--text-pri, #f8fafc)',
+                      lineHeight: 1.4
+                    }}>
+                      {info.formula}
+                    </div>
+                  </div>
+                </div>
+                
+                <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button 
+                    onClick={() => setExplanationModal(null)}
+                    style={{
+                      padding: '8px 16px',
+                      background: 'var(--primary, #38bdf8)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontSize: '0.85rem',
+                      transition: 'filter 0.2s'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.filter = 'brightness(1.1)'}
+                    onMouseLeave={(e) => e.currentTarget.style.filter = 'none'}
+                  >
+                    הבנתי, תודה
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          );
+        })()}
       </AnimatePresence>
 
       <footer style={{ marginTop: '3rem', borderTop: '1px solid var(--border-color)', padding: '1.5rem', textAlign: 'center' }}>
