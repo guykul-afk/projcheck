@@ -2071,7 +2071,7 @@ const App = () => {
                         <SortHeader label="מרפסת" sortKey="balcony" currentSort={inventorySort} onSort={(k) => setInventorySort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} align="center" style={{ width: '80px', color: 'var(--accent)', fontWeight: 800 }} />
                         <th style={{ width: '95px', padding: '12px 4px', textAlign: 'center' }}>שטח קבלן</th>
                         <SortHeader label="מחיר (₪)" sortKey="price" currentSort={inventorySort} onSort={(k) => setInventorySort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} align="center" style={{ width: '120px' }} />
-                        <SortHeader label={"מחיר למ\"ר"} sortKey="sqmPrice" currentSort={inventorySort} onSort={(k) => setInventorySort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} align="center" style={{ width: '110px' }} />
+                                <SortHeader label={'מחיר למ"ר'} sortKey="sqmPrice" currentSort={inventorySort} onSort={(k) => setInventorySort(p => ({ key: k, direction: p.key === k && p.direction === 'desc' ? 'asc' : 'desc' }))} align="center" style={{ width: '110px' }} />
                         <th style={{ width: '140px', padding: '12px 4px', textAlign: 'center' }}>שווי קבלן</th>
                         <th style={{ width: '65px', padding: '12px 4px', textAlign: 'center' }}>פעולות</th>
                       </tr>
@@ -2196,7 +2196,7 @@ const App = () => {
                                 }} 
                                 className="compact-input mono-number" 
                                 style={{ width: '100%', fontWeight: 600, color: 'var(--accent)', textAlign: 'center', border: '1px solid transparent', background: 'transparent' }} 
-                                title="מחיר למ\"ר (שינוי כאן מעדכן את המחיר הכולל)"
+                                title={'מחיר למ"ר (שינוי כאן מעדכן את המחיר הכולל)'}
                               />
                             </td>
                             <td className="mono-number" style={{ fontWeight: 700, color: 'var(--success)', fontSize: '0.85rem', textAlign: 'center', padding: '6px 4px' }}>
