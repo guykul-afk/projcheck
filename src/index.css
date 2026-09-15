@@ -1,3 +1,4 @@
+@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 :root {
@@ -264,3 +265,4 @@ button.primary:hover {
   fill: url(#negGradient);
   opacity: 0.15;
 }
+
