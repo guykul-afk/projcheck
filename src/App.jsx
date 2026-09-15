@@ -1599,16 +1599,39 @@ const App = () => {
                 </div>
 
                   <div style={{ borderRight: '1px solid var(--border-sharp)', paddingRight: '2rem' }} className="col-8">
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'stretch', gap: '1rem', marginBottom: '1.75rem', flexWrap: 'wrap' }}>
                       <div>
-                        <h3 style={{ fontSize: '0.75rem', color: 'var(--text-sec)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>סה"כ תקציב משוער</h3>
-                        <div className="mono-number" style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--accent)' }}>
+                        <h3 style={{ fontSize: '0.75rem', color: 'var(--text-sec)', textTransform: 'uppercase', marginBottom: '0.35rem' }}>סה"כ תקציב משוער</h3>
+                        <div className="mono-number" style={{ fontSize: '2.2rem', fontWeight: 700, color: 'var(--accent)' }}>
                           ₪{budgetStats.grandTotal.toLocaleString()}
                         </div>
                       </div>
-                      <div className="tactical-card" style={{ padding: '0.75rem 1rem', background: 'var(--bg-canvas)' }}>
-                        <h4 style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>מימון וערבויות</h4>
-                        <div className="mono-number" style={{ fontSize: '1rem', fontWeight: 600 }}>₪{budgetStats.financing.toLocaleString()}</div>
+                      <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+                        <div className="tactical-card" style={{ padding: '0.6rem 0.9rem', background: 'var(--bg-canvas)', minWidth: '125px' }}>
+                          <h4 style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '0.25rem', textTransform: 'uppercase' }}>סך עלות ליח"ד</h4>
+                          <div className="mono-number" style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-pri)' }}>
+                            ₪{Math.round(inventoryStats.totalUnits > 0 ? budgetStats.grandTotal / inventoryStats.totalUnits : 0).toLocaleString()}
+                          </div>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            {inventoryStats.totalUnits} יח"ד כולל
+                          </div>
+                        </div>
+                        <div className="tactical-card" style={{ padding: '0.6rem 0.9rem', background: 'var(--bg-canvas)', minWidth: '135px' }}>
+                          <h4 style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '0.25rem', textTransform: 'uppercase' }}>עלות למ"ר בנוי עילי</h4>
+                          <div className="mono-number" style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-pri)' }}>
+                            ₪{Math.round(planningStats.aboveGroundArea > 0 ? budgetStats.grandTotal / planningStats.aboveGroundArea : 0).toLocaleString()}
+                          </div>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            {planningStats.aboveGroundArea.toLocaleString()} מ"ר עילי
+                          </div>
+                        </div>
+                        <div className="tactical-card" style={{ padding: '0.6rem 0.9rem', background: 'var(--bg-canvas)', minWidth: '115px' }}>
+                          <h4 style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginBottom: '0.25rem', textTransform: 'uppercase' }}>מימון וערבויות</h4>
+                          <div className="mono-number" style={{ fontSize: '1.05rem', fontWeight: 600, color: '#8E9AAF' }}>₪{budgetStats.financing.toLocaleString()}</div>
+                          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            {financingPercent}% מהעלויות
+                          </div>
+                        </div>
                       </div>
                     </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
@@ -1746,6 +1769,22 @@ const App = () => {
                       <td colSpan="3" style={{ padding: '1.2rem 1rem' }}>סה"כ עלות פרויקט (כולל מימון)</td>
                       <td style={{ textAlign: 'left', padding: '1.2rem 1rem' }} className="mono-number">
                         ₪{budgetStats.grandTotal.toLocaleString()}
+                      </td>
+                    </tr>
+                    <tr style={{ background: 'var(--bg-elevated)', borderTop: '1px solid var(--border-sharp)', fontSize: '0.85rem' }}>
+                      <td colSpan="2" style={{ padding: '0.75rem 1rem' }}>
+                        <span style={{ color: 'var(--text-sec)', fontWeight: 600 }}>סך עלות ליח"ד: </span>
+                        <strong className="mono-number" style={{ color: 'var(--accent)', margin: '0 6px' }}>
+                          ₪{Math.round(inventoryStats.totalUnits > 0 ? budgetStats.grandTotal / inventoryStats.totalUnits : 0).toLocaleString()}
+                        </strong>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>({inventoryStats.totalUnits} יח' סה"כ)</span>
+                      </td>
+                      <td colSpan="2" style={{ textAlign: 'left', padding: '0.75rem 1rem' }}>
+                        <span style={{ color: 'var(--text-sec)', fontWeight: 600 }}>סך עלות למ"ר בנוי עילי: </span>
+                        <strong className="mono-number" style={{ color: 'var(--accent)', margin: '0 6px' }}>
+                          ₪{Math.round(planningStats.aboveGroundArea > 0 ? budgetStats.grandTotal / planningStats.aboveGroundArea : 0).toLocaleString()}
+                        </strong>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>({planningStats.aboveGroundArea.toLocaleString()} מ"ר עילי)</span>
                       </td>
                     </tr>
                   </tbody>
