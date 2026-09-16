@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   PieChart, FileText, Save, Calculator, Building, 
   Activity, ChevronDown, ChevronUp, Plus, Trash, Info, HelpCircle, List, MapPin, LogOut, BarChart2, TrendingUp, Copy, Layers,
-  Zap, ShieldAlert, Loader, PlayCircle, Database, ArrowUpDown, ArrowUp, ArrowDown, GripVertical
+  Zap, ShieldAlert, Loader, PlayCircle, Database, ArrowUpDown, ArrowUp, ArrowDown, GripVertical, Sliders, GitCompare, Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -10,6 +10,10 @@ import { db } from './firebase';
 import { useAuth } from './AuthContext';
 import { MARKET_TRANSACTIONS } from './data/marketData';
 import { MarketDataService } from './services/MarketDataService';
+import CashflowSCurve from './components/CashflowSCurve';
+import MonteCarloFanChart from './components/MonteCarloFanChart';
+import BuildingInventoryMatrix from './components/BuildingInventoryMatrix';
+import ScenarioComparator from './components/ScenarioComparator';
 
 const INITIAL_BUDGET = [
   { id: 1, section: 'קרקע + ייזום', color: '#264653', items: [ // Deep Teal
@@ -514,6 +518,15 @@ const App = () => {
   const [hoveredMonth, setHoveredMonth] = useState(null);
   const [bulkAdjustmentPct, setBulkAdjustmentPct] = useState(1.0);
   
+  // Owner <-> Developer Sqm Balancing state
+  const [ownerSqmDelta, setOwnerSqmDelta] = useState(5);
+  const [ownerSqmMode, setOwnerSqmMode] = useState('per_unit'); // 'per_unit' | 'total'
+  const [devTransferRatio, setDevTransferRatio] = useState(80); // percentage (e.g. 80%)
+  const [balanceDirectionMode, setBalanceDirectionMode] = useState('tradeoff'); // 'tradeoff' | 'parallel'
+  const [updateDevPricesWithSqm, setUpdateDevPricesWithSqm] = useState(true);
+  const [isSqmBalanceOpen, setIsSqmBalanceOpen] = useState(true);
+  const [sqmBalanceFeedback, setSqmBalanceFeedback] = useState(null);
+
   const [mcConfig, setMcConfig] = useState({ iterations: 1000, costVol: 8, revVol: 12, interestVol: 2, preset: '1y' });
   const [mcResults, setMcResults] = useState(null);
   const [isSimulating, setIsSimulating] = useState(false);
@@ -711,6 +724,28 @@ const App = () => {
       return inventorySort.direction === 'asc' ? res : -res;
     });
   }, [inventoryData, inventorySort]);
+
+  // Sqm Balancing Preview calculations
+  const sqmBalanceStats = useMemo(() => {
+    const ownerUnits = inventoryData.filter(a => a.type === 'בעלים' || (a.contractorSharePct ?? (a.type === 'יזם' ? 100 : 0)) === 0);
+    const devUnits = inventoryData.filter(a => a.type === 'יזם' || (a.contractorSharePct ?? 0) > 0);
+    const delta = Math.abs(Number(ownerSqmDelta) || 0);
+    const perOwnerDelta = ownerUnits.length > 0 ? (ownerSqmMode === 'per_unit' ? delta : (delta / ownerUnits.length)) : 0;
+    const totalOwnerDelta = perOwnerDelta * ownerUnits.length;
+    const ratio = Math.max(0, Number(devTransferRatio) || 0) / 100;
+    const totalDevDelta = totalOwnerDelta * ratio;
+    const perDevDelta = devUnits.length > 0 ? (totalDevDelta / devUnits.length) : 0;
+
+    return {
+      ownerUnitsCount: ownerUnits.length,
+      devUnitsCount: devUnits.length,
+      perOwnerDelta,
+      totalOwnerDelta,
+      ratio,
+      totalDevDelta,
+      perDevDelta
+    };
+  }, [inventoryData, ownerSqmDelta, ownerSqmMode, devTransferRatio]);
 
   // Project Reordering Logic
   const moveProject = (index, direction) => {
@@ -1140,6 +1175,86 @@ const App = () => {
     updateProject({ inventoryData: updated });
   };
 
+  const applyOwnerDevSqmBalance = (isIncreaseOwner) => {
+    const ownerUnits = inventoryData.filter(a => a.type === 'בעלים' || (a.contractorSharePct ?? (a.type === 'יזם' ? 100 : 0)) === 0);
+    const devUnits = inventoryData.filter(a => a.type === 'יזם' || (a.contractorSharePct ?? 0) > 0);
+
+    if (ownerUnits.length === 0) {
+      alert('לא נמצאו דירות בעלים במלאי הפרויקט.');
+      return;
+    }
+    if (devUnits.length === 0) {
+      alert('לא נמצאו דירות יזם במלאי הפרויקט לחלוקת השטחים.');
+      return;
+    }
+
+    const delta = Math.abs(Number(ownerSqmDelta) || 0);
+    if (delta === 0) {
+      alert('נא להזין מספר מטרים תקין גדול מ-0 לשינוי.');
+      return;
+    }
+
+    const perOwnerDelta = ownerSqmMode === 'per_unit' ? delta : (delta / ownerUnits.length);
+    const totalOwnerDelta = perOwnerDelta * ownerUnits.length;
+    const ratio = Math.max(0, Number(devTransferRatio) || 0) / 100;
+    const totalDevDelta = totalOwnerDelta * ratio;
+    const perDevDelta = totalDevDelta / devUnits.length;
+
+    // Direction calculation
+    const ownerChangeSign = isIncreaseOwner ? 1 : -1;
+    const devChangeSign = balanceDirectionMode === 'tradeoff' 
+      ? (isIncreaseOwner ? -1 : 1) 
+      : (isIncreaseOwner ? 1 : -1);
+
+    // Validate that no apartment ends up with <= 0 sqm
+    const invalidOwner = ownerUnits.some(a => (a.area + (ownerChangeSign * perOwnerDelta)) <= 0);
+    const invalidDev = devUnits.some(a => (a.area + (devChangeSign * perDevDelta)) <= 0);
+
+    if (invalidOwner || invalidDev) {
+      alert('שגיאה: השינוי המבוקש גורם לשטח של אחת או יותר מהדירות להיות קטן מ-1 מ"ר. הפעולה בוטלה.');
+      return;
+    }
+
+    const updated = inventoryData.map(apt => {
+      const isOwner = apt.type === 'בעלים' || (apt.contractorSharePct ?? (apt.type === 'יזם' ? 100 : 0)) === 0;
+      const isDev = apt.type === 'יזם' || (apt.contractorSharePct ?? 0) > 0;
+
+      if (isOwner) {
+        const newArea = Math.max(1, Math.round((apt.area + (ownerChangeSign * perOwnerDelta)) * 10) / 10);
+        return {
+          ...apt,
+          area: newArea
+        };
+      } else if (isDev) {
+        const newArea = Math.max(1, Math.round((apt.area + (devChangeSign * perDevDelta)) * 10) / 10);
+        let newPrice = apt.price;
+        if (updateDevPricesWithSqm && apt.area > 0 && apt.price > 0) {
+          const sqmPrice = apt.price / apt.area;
+          newPrice = Math.round(sqmPrice * newArea);
+        }
+        return {
+          ...apt,
+          area: newArea,
+          price: newPrice
+        };
+      }
+      return apt;
+    });
+
+    updateProject({ inventoryData: updated });
+
+    // User feedback
+    const actionText = isIncreaseOwner 
+      ? `התווספו ${perOwnerDelta.toFixed(1)} מ"ר לכל דירת בעלים`
+      : `הופחתו ${perOwnerDelta.toFixed(1)} מ"ר מכל דירת בעלים`;
+    const devText = devChangeSign > 0
+      ? `והתווספו ${perDevDelta.toFixed(1)} מ"ר לכל דירת יזם (${totalDevDelta.toFixed(1)} מ"ר סה"כ, יחס ${(ratio * 100).toFixed(0)}%)`
+      : `וקוזזו ${perDevDelta.toFixed(1)} מ"ר מכל דירת יזם (${totalDevDelta.toFixed(1)} מ"ר סה"כ, יחס ${(ratio * 100).toFixed(0)}%)`;
+
+    setSqmBalanceFeedback(`${actionText} ${devText}`);
+    setTimeout(() => setSqmBalanceFeedback(null), 6000);
+  };
+
   const addNewProject = () => {
     const newId = `p${Date.now()}`;
     const newProj = createDefaultProject(newId, `פרויקט ${projects.length + 1}`);
@@ -1554,21 +1669,33 @@ const App = () => {
       </header>
 
       {activeTab !== 'portfolio' && (
-        <div className="tabs" style={{ marginBottom: '2.5rem' }}>
+        <div className="tabs" style={{ marginBottom: '2.5rem', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
           <div className={`tab ${activeTab === 'budget' ? 'active' : ''}`} onClick={() => setActiveTab('budget')}>
             <Calculator size={14} style={{ marginLeft: '8px' }} /> תקציב
           </div>
           <div className={`tab ${activeTab === 'inventory' ? 'active' : ''}`} onClick={() => setActiveTab('inventory')}>
-            <Building size={14} style={{ marginLeft: '8px' }} /> מלאי
+            <Building size={14} style={{ marginLeft: '8px' }} /> מלאי (טבלה)
+          </div>
+          <div className={`tab ${activeTab === 'matrix' ? 'active' : ''}`} onClick={() => setActiveTab('matrix')}>
+            <Layers size={14} style={{ marginLeft: '8px' }} /> תאום מרחבי
           </div>
           <div className={`tab ${activeTab === 'profit' ? 'active' : ''}`} onClick={() => setActiveTab('profit')}>
             <Activity size={14} style={{ marginLeft: '8px' }} /> רווחיות
           </div>
           <div className={`tab ${activeTab === 'cashflow' ? 'active' : ''}`} onClick={() => setActiveTab('cashflow')}>
-            <TrendingUp size={14} style={{ marginLeft: '8px' }} /> תזרים
+            <TrendingUp size={14} style={{ marginLeft: '8px' }} /> תזרים חודשי
+          </div>
+          <div className={`tab ${activeTab === 'scurve' ? 'active' : ''}`} onClick={() => setActiveTab('scurve')}>
+            <Sliders size={14} style={{ marginLeft: '8px' }} /> עקומת S וחשיפה
+          </div>
+          <div className={`tab ${activeTab === 'montecarlo' ? 'active' : ''}`} onClick={() => setActiveTab('montecarlo')}>
+            <Zap size={14} style={{ marginLeft: '8px' }} /> מניפת סיכונים
+          </div>
+          <div className={`tab ${activeTab === 'compare' ? 'active' : ''}`} onClick={() => setActiveTab('compare')}>
+            <GitCompare size={14} style={{ marginLeft: '8px' }} /> השוואת תרחישים
           </div>
           <div className={`tab ${activeTab === 'planning' ? 'active' : ''}`} onClick={() => setActiveTab('planning')}>
-            <Layers size={14} style={{ marginLeft: '8px' }} /> נתוני תכנון
+            <FileText size={14} style={{ marginLeft: '8px' }} /> נתוני תכנון
           </div>
         </div>
       )}
@@ -1944,158 +2071,415 @@ const App = () => {
                 </motion.div>
               )}
 
-              <div className="bento-grid">
-                <div className="tactical-card col-2">
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>יח"ד</span>
-                  <div className="mono-number" style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.25rem 0' }}>{inventoryStats.totalUnits}</div>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>יזם: {inventoryStats.devUnits} | בעלים: {inventoryStats.ownerUnits}</div>
-                </div>
-                <div className="tactical-card col-2">
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>גודל ממוצע</span>
-                  <div className="mono-number" style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.25rem 0' }}>{inventoryStats.avgAptArea.toFixed(1)} <span style={{fontSize: '0.7rem'}}>מ"ר</span></div>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>לכלל המלאי</div>
-                </div>
-                <div className="tactical-card col-2">
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>דירות מיוחדות</span>
-                  <div className="mono-number" style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.25rem 0', color: '#F4A261' }}>{inventoryStats.specialAreaPctTotal}%</div>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>מסך המ"ר בפרויקט</div>
-                </div>
-                <div className="tactical-card col-3">
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>תמהיל חדרים</span>
-                  <div style={{ marginTop: '0.35rem', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                    {inventoryStats.roomSplit.map(group => (
-                      <div key={group.rooms} style={{ fontSize: '0.6rem', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-sharp)', whiteSpace: 'nowrap', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
-                          <span style={{ fontWeight: 700 }}>{group.rooms} ח':</span>
-                          <span>{group.count} ({group.pct}%)</span>
-                        </div>
-                        <div style={{ color: 'var(--accent)', fontSize: '0.55rem', fontWeight: 600 }}>
-                          ₪{Math.round(group.avgPrice).toLocaleString()}/מ"ר
-                        </div>
-                      </div>
-                    ))}
+              {/* Inventory Summary KPI Cards */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                gap: '1rem',
+                marginBottom: '1rem'
+              }}>
+                {/* Card 1: סה"כ יח"ד */}
+                <div className="tactical-card" style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-sec)', fontWeight: 700, textTransform: 'uppercase' }}>סה"כ יח"ד</span>
+                  <div className="mono-number" style={{ fontSize: '1.6rem', fontWeight: 800, margin: '0.35rem 0' }}>
+                    {inventoryStats.totalUnits} <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-muted)' }}>דירות</span>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                    יזם: <strong className="mono-number" style={{ color: 'var(--accent)' }}>{inventoryStats.devUnits.toFixed(1)}</strong> | בעלים: <strong className="mono-number">{inventoryStats.ownerUnits.toFixed(1)}</strong>
                   </div>
                 </div>
-                <div className="tactical-card col-3">
-                  <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)', textTransform: 'uppercase' }}>מחיר ממוצע למ"ר</span>
-                  <div className="mono-number" style={{ fontSize: '1.2rem', fontWeight: 700, margin: '0.25rem 0' }}>₪{Math.round(inventoryStats.avgPricePerSqm).toLocaleString()}</div>
-                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>כולל מע"מ (דירות יזם)</div>
+
+                {/* Card 2: שטח כולל וממוצע */}
+                <div className="tactical-card" style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-sec)', fontWeight: 700, textTransform: 'uppercase' }}>שטח כולל</span>
+                  <div className="mono-number" style={{ fontSize: '1.6rem', fontWeight: 800, margin: '0.35rem 0' }}>
+                    {Math.round(inventoryStats.totalArea).toLocaleString()} <span style={{ fontSize: '0.85rem', fontWeight: 500, color: 'var(--text-muted)' }}>מ"ר</span>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                    ממוצע לדירה: <strong className="mono-number">{inventoryStats.avgAptArea.toFixed(1)}</strong> מ"ר
+                  </div>
                 </div>
-                {/* Secondary row or extra info */}
-                <div className="tactical-card col-4" style={{ padding: '0.75rem 1rem' }}>
-                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)' }}>שטח כולל: <span className="mono-number" style={{ fontWeight: 700 }}>{inventoryStats.totalArea.toLocaleString()}</span> מ"ר</span>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--text-sec)' }}>שווי יזם נקי: <span className="mono-number" style={{ fontWeight: 700 }}>₪{Math.round(inventoryStats.devValueExclVat).toLocaleString()}</span></span>
-                   </div>
+
+                {/* Card 3: שווי מכירות יזם */}
+                <div className="tactical-card" style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-sec)', fontWeight: 700, textTransform: 'uppercase' }}>שווי יזם נקי (ללא מע"מ)</span>
+                  <div className="mono-number" style={{ fontSize: '1.6rem', fontWeight: 800, margin: '0.35rem 0', color: 'var(--success)' }}>
+                    ₪{Math.round(inventoryStats.devValueExclVat).toLocaleString()}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                    כולל מע"מ: <strong className="mono-number">₪{Math.round(inventoryStats.devValueInclVat).toLocaleString()}</strong>
+                  </div>
+                </div>
+
+                {/* Card 4: מחיר ממוצע למ"ר */}
+                <div className="tactical-card" style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-sec)', fontWeight: 700, textTransform: 'uppercase' }}>מחיר ממוצע למ"ר</span>
+                  <div className="mono-number" style={{ fontSize: '1.6rem', fontWeight: 800, margin: '0.35rem 0', color: 'var(--accent)' }}>
+                    ₪{Math.round(inventoryStats.avgPricePerSqm).toLocaleString()}
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>כולל מע"מ (דירות יזם)</div>
+                </div>
+
+                {/* Card 5: דירות מיוחדות */}
+                <div className="tactical-card" style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-sec)', fontWeight: 700, textTransform: 'uppercase' }}>דירות מיוחדות</span>
+                  <div className="mono-number" style={{ fontSize: '1.6rem', fontWeight: 800, margin: '0.35rem 0', color: '#F4A261' }}>
+                    {inventoryStats.specialAreaPctTotal}%
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                    שווי: <strong className="mono-number">{inventoryStats.specialValuePct}%</strong> משווי יזם
+                  </div>
+                </div>
+
+                {/* Card 6: תמהיל חדרים */}
+                <div className="tactical-card" style={{ padding: '1.2rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-sec)', fontWeight: 700, textTransform: 'uppercase' }}>תמהיל חדרים</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', margin: '0.35rem 0' }}>
+                    {inventoryStats.roomSplit.map(group => (
+                      <span key={group.rooms} style={{ fontSize: '0.65rem', background: 'var(--bg-elevated)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-sharp)', fontWeight: 600 }}>
+                        {group.rooms} ח': <strong className="mono-number">{group.count}</strong> ({group.pct}%)
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>לפי סך החדרים בפרויקט</div>
                 </div>
               </div>
 
-              <div className="table-container" style={{ marginTop: 0 }}>
-                {/* Combination Deal Control Panel */}
-                <div style={{
-                  padding: '0.75rem 1rem',
-                  background: activeProject?.isCombinationDeal ? 'rgba(16, 185, 129, 0.06)' : 'var(--bg-elevated)',
-                  borderBottom: '1px solid var(--border-sharp)',
-                  display: 'flex',
-                  flexWrap: 'wrap',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: '12px'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', color: activeProject?.isCombinationDeal ? 'var(--success)' : 'var(--text-pri)' }}>
-                      <input 
-                        type="checkbox" 
-                        checked={Boolean(activeProject?.isCombinationDeal)}
-                        onChange={(e) => updateProject({ isCombinationDeal: e.target.checked })}
-                        style={{ cursor: 'pointer', accentColor: 'var(--accent)', width: '16px', height: '16px' }}
-                      />
-                      <span>עסקת קומבינציה</span>
-                    </label>
-
-                    {activeProject?.isCombinationDeal && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-canvas)', padding: '3px 10px', borderRadius: '4px', border: '1px solid var(--border-sharp)' }}>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)', fontWeight: 600 }}>אחוז בעלי הקרקע:</span>
-                          <input 
-                            type="number" 
-                            min="0" 
-                            max="100" 
-                            step="0.5"
-                            value={activeProject?.combinationLandownerPct ?? 40} 
-                            onChange={(e) => updateProject({ combinationLandownerPct: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) })}
-                            style={{ width: '55px', padding: '2px 4px', fontSize: '0.85rem', fontWeight: 800, textAlign: 'center', background: 'var(--bg-surface)', border: '1px solid var(--accent)', borderRadius: '4px', color: '#F4A261' }}
-                          />
-                          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>%</span>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(16, 185, 129, 0.1)', padding: '3px 10px', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)', fontWeight: 600 }}>אחוז היזם (מחושב):</span>
-                          <span className="mono-number" style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--success)' }}>
-                            {(100 - (activeProject?.combinationLandownerPct ?? 40)).toFixed(1)}%
-                          </span>
-                        </div>
-
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', gap: '10px' }}>
-                          <span>יזם: <strong className="mono-number" style={{ color: 'var(--text-pri)' }}>{inventoryStats.devUnits.toFixed(1)}</strong> יח' ({Math.round(inventoryStats.devArea).toLocaleString()} מ"ר)</span>
-                          <span>בעלים: <strong className="mono-number" style={{ color: 'var(--text-pri)' }}>{inventoryStats.ownerUnits.toFixed(1)}</strong> יח' ({Math.round(inventoryStats.totalArea - inventoryStats.devArea).toLocaleString()} מ"ר)</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+              {/* Combination Deal Control Card */}
+              <div className="tactical-card" style={{
+                padding: '0.9rem 1.25rem',
+                background: activeProject?.isCombinationDeal ? 'rgba(16, 185, 129, 0.05)' : 'var(--bg-surface)',
+                border: activeProject?.isCombinationDeal ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border-sharp)',
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '1rem',
+                marginBottom: '1rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.85rem', color: activeProject?.isCombinationDeal ? 'var(--success)' : 'var(--text-pri)' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={Boolean(activeProject?.isCombinationDeal)}
+                      onChange={(e) => updateProject({ isCombinationDeal: e.target.checked })}
+                      style={{ cursor: 'pointer', accentColor: 'var(--accent)', width: '16px', height: '16px' }}
+                    />
+                    <span>עסקת קומבינציה</span>
+                  </label>
 
                   {activeProject?.isCombinationDeal && (
-                    <span style={{ fontSize: '0.7rem', color: 'var(--accent)', fontWeight: 600 }}>
-                      * אחוז היזם מוחל אוטומטית על כלל שורות המלאי וחישובי הרווחיות
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--bg-canvas)', padding: '4px 10px', borderRadius: '4px', border: '1px solid var(--border-sharp)' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)', fontWeight: 600 }}>אחוז בעלי הקרקע:</span>
+                        <input 
+                          type="number" 
+                          min="0" 
+                          max="100" 
+                          step="0.5"
+                          value={activeProject?.combinationLandownerPct ?? 40} 
+                          onChange={(e) => updateProject({ combinationLandownerPct: Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)) })}
+                          style={{ width: '55px', padding: '2px 4px', fontSize: '0.85rem', fontWeight: 800, textAlign: 'center', background: 'var(--bg-surface)', border: '1px solid var(--accent)', borderRadius: '4px', color: '#F4A261' }}
+                        />
+                        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>%</span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(16, 185, 129, 0.1)', padding: '4px 10px', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)', fontWeight: 600 }}>אחוז היזם (מחושב):</span>
+                        <span className="mono-number" style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--success)' }}>
+                          {(100 - (activeProject?.combinationLandownerPct ?? 40)).toFixed(1)}%
+                        </span>
+                      </div>
+
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', gap: '10px' }}>
+                        <span>יזם: <strong className="mono-number" style={{ color: 'var(--text-pri)' }}>{inventoryStats.devUnits.toFixed(1)}</strong> יח' ({Math.round(inventoryStats.devArea).toLocaleString()} מ"ר)</span>
+                        <span>בעלים: <strong className="mono-number" style={{ color: 'var(--text-pri)' }}>{inventoryStats.ownerUnits.toFixed(1)}</strong> יח' ({Math.round(inventoryStats.totalArea - inventoryStats.devArea).toLocaleString()} מ"ר)</span>
+                      </div>
+                    </div>
                   )}
                 </div>
 
-                <div style={{ padding: '0.75rem 1rem', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border-sharp)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                    <h3 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>ניהול מלאי</h3>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 12px', background: 'rgba(88, 166, 255, 0.05)', borderRadius: '4px', border: '1px dashed var(--accent)' }}>
+                {activeProject?.isCombinationDeal && (
+                  <span style={{ fontSize: '0.7rem', color: 'var(--accent)', fontWeight: 600 }}>
+                    * אחוז היזם מוחל אוטומטית על כלל שורות המלאי וחישובי הרווחיות
+                  </span>
+                )}
+              </div>
+
+              <div className="table-container" style={{ marginTop: 0 }}>
+                {/* Management Toolbar */}
+                <div style={{
+                  padding: '0.85rem 1.25rem',
+                  background: 'var(--bg-elevated)',
+                  borderBottom: '1px solid var(--border-sharp)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '12px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                    <h3 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-pri)', margin: 0 }}>
+                      ניהול מלאי ופעולות רוחביות
+                    </h3>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 12px', background: 'var(--bg-canvas)', borderRadius: '4px', border: '1px dashed var(--accent)' }}>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>עדכון מחירים (%):</span>
                       <input 
                         type="number" 
                         step="0.1"
                         value={bulkAdjustmentPct} 
                         onChange={(e) => setBulkAdjustmentPct(parseFloat(e.target.value) || 0)} 
-                        style={{ width: '60px', padding: '2px 6px', fontSize: '0.8rem', background: 'var(--bg-canvas)', border: '1px solid var(--border-sharp)', borderRadius: '4px' }}
+                        style={{ width: '60px', padding: '2px 6px', fontSize: '0.8rem', background: 'var(--bg-surface)', border: '1px solid var(--border-sharp)', borderRadius: '4px', color: 'var(--text-pri)', textAlign: 'center' }}
                       />
                       <button 
                         onClick={() => applyBulkPriceAdjustment(true)}
-                        style={{ padding: '2px 8px', fontSize: '0.75rem', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        style={{ padding: '3px 10px', fontSize: '0.75rem', background: 'var(--accent)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}
                       >
                         <Plus size={12} /> העלה
                       </button>
                       <button 
                         onClick={() => applyBulkPriceAdjustment(false)}
-                        style={{ padding: '2px 8px', fontSize: '0.75rem', background: '#E76F51', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                        style={{ padding: '3px 10px', fontSize: '0.75rem', background: '#E76F51', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}
                       >
                         <Trash size={12} /> הורד
                       </button>
                     </div>
+
+                    <button
+                      onClick={() => setIsSqmBalanceOpen(prev => !prev)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '5px 12px',
+                        background: isSqmBalanceOpen ? 'rgba(56, 189, 248, 0.15)' : 'var(--bg-canvas)',
+                        border: isSqmBalanceOpen ? '1px solid #38bdf8' : '1px solid var(--border-sharp)',
+                        borderRadius: '4px',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        color: isSqmBalanceOpen ? '#0284c7' : 'var(--text-pri)',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <ArrowUpDown size={14} />
+                      <span>כלי איזון מ"ר (בעלים ↔ יזם: {devTransferRatio}%)</span>
+                      {isSqmBalanceOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
                   </div>
+
                   <button 
                     onClick={() => updateProject({ inventoryData: [...inventoryData, { id: Date.now(), floor: 1, type: 'יזם', category: 'טיפוסית', rooms: 3, area: 100, balcony: 12, price: 0 }] })} 
                     style={{ 
-                      background: 'var(--bg-canvas)', 
-                      color: 'var(--accent)', 
-                      border: '1px solid var(--accent)',
+                      background: 'var(--accent)', 
+                      color: 'white', 
+                      border: 'none',
                       display: 'flex', 
                       alignItems: 'center', 
                       gap: '6px', 
-                      padding: '4px 12px',
-                      borderRadius: '2px',
+                      padding: '5px 14px',
+                      borderRadius: '4px',
                       fontSize: '0.75rem',
-                      fontWeight: 600,
+                      fontWeight: 700,
                       cursor: 'pointer'
                     }}
                   >
                     <Plus size={14} /> הוסף דירה
                   </button>
                 </div>
+
+                {/* Owner <-> Developer Sqm Balancing Panel (Theme-Aware & High Contrast) */}
+                {isSqmBalanceOpen && (
+                  <div style={{
+                    padding: '1.25rem 1.5rem',
+                    background: 'var(--bg-surface)',
+                    borderBottom: '2px solid var(--border-sharp)',
+                    borderLeft: '4px solid var(--accent)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1rem'
+                  }}>
+                    {/* Header of Panel */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ background: 'rgba(56, 189, 248, 0.15)', color: '#0284c7', padding: '8px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <ArrowUpDown size={20} />
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-pri)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span>איזון והעברת מ"ר (דירות בעלים ⟷ דירות יזם)</span>
+                            <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.15)', color: 'var(--success)', fontWeight: 800 }}>
+                              יחס חלוקה {devTransferRatio}%
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '3px' }}>
+                            הוספה או הפחתה של מ"ר מדירות הבעלים (כולן), כאשר סך המטרים מתחלק בכלל דירות היזם לפי היחס המוגדר
+                          </div>
+                        </div>
+                      </div>
+
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--text-sec)', background: 'var(--bg-canvas)', padding: '6px 12px', borderRadius: '4px', border: '1px solid var(--border-sharp)', fontWeight: 600 }}>
+                        <input
+                          type="checkbox"
+                          checked={updateDevPricesWithSqm}
+                          onChange={(e) => setUpdateDevPricesWithSqm(e.target.checked)}
+                          style={{ accentColor: 'var(--accent)', cursor: 'pointer', width: '15px', height: '15px' }}
+                        />
+                        <span>עדכן מחיר מכירה כולל של דירות היזם לפי ₪/מ"ר נוכחי</span>
+                      </label>
+                    </div>
+
+                    {/* Controls Row */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', alignItems: 'center' }}>
+                      {/* 1. Delta Sqm */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-canvas)', padding: '5px 12px', borderRadius: '6px', border: '1px solid var(--border-sharp)' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-sec)' }}>שינוי שטח בעלים:</span>
+                        <input
+                          type="number"
+                          min="0.1"
+                          step="0.5"
+                          value={ownerSqmDelta}
+                          onChange={(e) => setOwnerSqmDelta(parseFloat(e.target.value) || 0)}
+                          style={{ width: '60px', padding: '3px 6px', fontSize: '0.9rem', fontWeight: 800, textAlign: 'center', background: 'var(--bg-surface)', border: '1px solid var(--accent)', borderRadius: '4px', color: 'var(--text-pri)' }}
+                        />
+                        <select
+                          value={ownerSqmMode}
+                          onChange={(e) => setOwnerSqmMode(e.target.value)}
+                          style={{ fontSize: '0.8rem', background: 'var(--bg-surface)', border: '1px solid var(--border-sharp)', borderRadius: '4px', color: 'var(--text-pri)', padding: '3px 8px', cursor: 'pointer', fontWeight: 600 }}
+                        >
+                          <option value="per_unit">מ"ר לכל דירת בעלים</option>
+                          <option value="total">סה"כ מ"ר לכלל הבעלים</option>
+                        </select>
+                      </div>
+
+                      {/* 2. Transfer ratio */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-canvas)', padding: '5px 12px', borderRadius: '6px', border: '1px solid var(--border-sharp)' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-sec)' }}>יחס חלוקה ליזם:</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="200"
+                          step="1"
+                          value={devTransferRatio}
+                          onChange={(e) => setDevTransferRatio(parseFloat(e.target.value) || 0)}
+                          style={{ width: '55px', padding: '3px 6px', fontSize: '0.9rem', fontWeight: 800, textAlign: 'center', background: 'var(--bg-surface)', border: '1px solid #10b981', borderRadius: '4px', color: '#10b981' }}
+                        />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#10b981' }}>%</span>
+                      </div>
+
+                      {/* 3. Mode selector */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-canvas)', padding: '5px 12px', borderRadius: '6px', border: '1px solid var(--border-sharp)' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-sec)' }}>אופן החישוב:</span>
+                        <select
+                          value={balanceDirectionMode}
+                          onChange={(e) => setBalanceDirectionMode(e.target.value)}
+                          style={{ fontSize: '0.8rem', background: 'var(--bg-surface)', border: '1px solid var(--border-sharp)', borderRadius: '4px', color: 'var(--text-pri)', cursor: 'pointer', padding: '3px 8px', fontWeight: 600 }}
+                        >
+                          <option value="tradeoff">קיזוז שטחים (הורדה מבעלים מוסיפה ליזם ולהיפך)</option>
+                          <option value="parallel">התאמה מקבילה (באותו כיוון לשניהם)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Live Preview Strip & Action Buttons */}
+                    <div style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '14px',
+                      background: 'var(--bg-canvas)',
+                      padding: '10px 14px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-sharp)'
+                    }}>
+                      {/* Live calculation info */}
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-sec)', display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center' }}>
+                        <div>
+                          <span style={{ color: 'var(--text-muted)' }}>דירות בעלים ({sqmBalanceStats.ownerUnitsCount}):</span>{' '}
+                          <strong style={{ color: 'var(--text-pri)' }}>{sqmBalanceStats.perOwnerDelta.toFixed(1)} מ"ר/דירה</strong>{' '}
+                          <span style={{ color: 'var(--text-muted)' }}>(סה"כ {sqmBalanceStats.totalOwnerDelta.toFixed(1)} מ"ר)</span>
+                        </div>
+                        <span style={{ color: 'var(--accent)', fontWeight: 800 }}>⟵ {devTransferRatio}% ⟶</span>
+                        <div>
+                          <span style={{ color: 'var(--text-muted)' }}>דירות יזם ({sqmBalanceStats.devUnitsCount}):</span>{' '}
+                          <strong style={{ color: 'var(--success)' }}>{sqmBalanceStats.perDevDelta.toFixed(1)} מ"ר/דירה</strong>{' '}
+                          <span style={{ color: 'var(--text-muted)' }}>(סה"כ {sqmBalanceStats.totalDevDelta.toFixed(1)} מ"ר יחולקו שווה בשווה)</span>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <button
+                          onClick={() => applyOwnerDevSqmBalance(false)}
+                          disabled={sqmBalanceStats.ownerUnitsCount === 0 || sqmBalanceStats.devUnitsCount === 0}
+                          title={balanceDirectionMode === 'tradeoff' ? 'מפחית מ"ר מכל דירות הבעלים ומוסיף לדירות היזם' : 'מפחית מ"ר מכל הדירות'}
+                          style={{
+                            padding: '6px 14px',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            background: '#E76F51',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: (sqmBalanceStats.ownerUnitsCount === 0 || sqmBalanceStats.devUnitsCount === 0) ? 'not-allowed' : 'pointer',
+                            opacity: (sqmBalanceStats.ownerUnitsCount === 0 || sqmBalanceStats.devUnitsCount === 0) ? 0.5 : 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            boxShadow: '0 2px 4px rgba(231, 111, 81, 0.2)'
+                          }}
+                        >
+                          <ArrowDown size={15} />
+                          {balanceDirectionMode === 'tradeoff' ? 'הורד מבעלים (והעבר ליזם)' : 'הורד מבעלים ומיזם'}
+                        </button>
+                        <button
+                          onClick={() => applyOwnerDevSqmBalance(true)}
+                          disabled={sqmBalanceStats.ownerUnitsCount === 0 || sqmBalanceStats.devUnitsCount === 0}
+                          title={balanceDirectionMode === 'tradeoff' ? 'מוסיף מ"ר לכל דירות הבעלים ומקזז מדירות היזם' : 'מוסיף מ"ר לכל הדירות'}
+                          style={{
+                            padding: '6px 14px',
+                            fontSize: '0.8rem',
+                            fontWeight: 700,
+                            background: 'var(--accent)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: (sqmBalanceStats.ownerUnitsCount === 0 || sqmBalanceStats.devUnitsCount === 0) ? 'not-allowed' : 'pointer',
+                            opacity: (sqmBalanceStats.ownerUnitsCount === 0 || sqmBalanceStats.devUnitsCount === 0) ? 0.5 : 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            boxShadow: '0 2px 4px rgba(88, 166, 255, 0.2)'
+                          }}
+                        >
+                          <ArrowUp size={15} />
+                          {balanceDirectionMode === 'tradeoff' ? 'העלה לבעלים (וקזז מיזם)' : 'העלה לבעלים וליזם'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Feedback banner */}
+                    {sqmBalanceFeedback && (
+                      <div style={{
+                        padding: '8px 14px',
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        border: '1px solid #10b981',
+                        borderRadius: '4px',
+                        color: '#10b981',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}>
+                        <Check size={16} />
+                        <span>{sqmBalanceFeedback}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <div style={{ overflowX: 'auto', background: 'var(--bg-canvas)', borderRadius: 'var(--radius-sharp)', border: '1px solid var(--border-sharp)' }}>
                   <table style={{ width: 'max-content', borderCollapse: 'collapse', borderSpacing: 0 }}>
                     <thead>
@@ -3190,6 +3574,29 @@ const App = () => {
                 </div>
               </div>
             </div>
+                    ) : activeTab === 'matrix' ? (
+              <BuildingInventoryMatrix
+                project={activeProject}
+                onUpdateInventory={(newInventory) => updateProject({ inventoryData: newInventory })}
+              />
+                    ) : activeTab === 'scurve' ? (
+              <CashflowSCurve
+                project={activeProject}
+                onApplyChanges={(changes) => updateProject(changes)}
+              />
+                    ) : activeTab === 'montecarlo' ? (
+              <MonteCarloFanChart
+                project={activeProject}
+              />
+                    ) : activeTab === 'compare' ? (
+              <ScenarioComparator
+                projects={projects}
+                activeProjectId={activeProjectId}
+                onForkScenario={(newProject) => {
+                  setProjects(prev => [...prev, newProject]);
+                  setActiveProjectId(newProject.id);
+                }}
+              />
                     ) : activeTab === 'portfolio' ? (
               <div style={{ display:'flex', flexDirection:'column', gap:'1.5rem' }}>
                 {/* Portfolio Summary Dashboard */}

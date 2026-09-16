@@ -2,23 +2,28 @@ import React, { useState } from 'react';
 import { useAuth } from './AuthContext';
 
 const Login = () => {
-  const { loginWithGoogle } = useAuth();
-  const [error, setError] = useState(null);
+  const { loginWithGoogle, authError, setAuthError } = useAuth();
+  const [localError, setLocalError] = useState(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  const displayError = localError || authError;
 
   const handleLogin = async () => {
     setIsLoggingIn(true);
-    setError(null);
+    setLocalError(null);
+    if (setAuthError) setAuthError(null);
     try {
       await loginWithGoogle();
     } catch (err) {
       console.error("Login error:", err);
       if (err.code === 'auth/operation-not-allowed') {
-        setError("שגיאה: עליך להפעיל את Google Sign-In בתוך Firebase Console.");
+        setLocalError("שגיאה: עליך להפעיל את Google Sign-In בתוך Firebase Console.");
       } else if (err.code === 'auth/popup-blocked') {
-        setError("שגיאה: הדפדפן חסם את חלונית ההתחברות. נסה שוב/אפשר פופאפים.");
+        setLocalError("שגיאה: הדפדפן חסם את חלונית ההתחברות. נסה שוב/אפשר פופאפים.");
+      } else if (err.message && err.message.includes('גישה נדחתה')) {
+        setLocalError(err.message);
       } else {
-        setError(`שגיאה בהתחברות: ${err.message}`);
+        setLocalError(`שגיאה בהתחברות: ${err.message}`);
       }
     } finally {
       setIsLoggingIn(false);
@@ -71,7 +76,7 @@ const Login = () => {
           <span style={{ fontSize: '0.85rem', opacity: 0.8 }}>כלי ניתוח מתקדם ליזמים ומשקיעי נדל"ן</span>
         </p>
 
-        {error && (
+        {displayError && (
           <div style={{
             background: '#fdecec',
             color: '#E76F51',
@@ -80,9 +85,10 @@ const Login = () => {
             fontSize: '0.9rem',
             marginBottom: '2rem',
             border: '1px solid rgba(231, 111, 81, 0.2)',
-            textAlign: 'right'
+            textAlign: 'right',
+            lineHeight: 1.5
           }}>
-            {error}
+            {displayError}
           </div>
         )}
 

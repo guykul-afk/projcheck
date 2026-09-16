@@ -26,14 +26,14 @@ export default function BudgetDashboardMockup({ budgetData = [], projectStats = 
   const formatMoney = (val) => new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(val);
 
   return (
-    <div className="min-h-screen bg-canvas text-fg-primary font-inter p-4" dir="rtl">
+    <div className="min-h-screen bg-canvas text-fg-primary font-heebo p-4" dir="rtl">
       {/* Top Header / Toolbar */}
       <header className="flex items-center justify-between mb-4 bg-surface border border-border px-4 py-2 rounded-md">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-surface-elevated border border-border flex items-center justify-center rounded">
             <Calculator size={16} className="text-emerald" />
           </div>
-          <h1 className="font-outfit font-semibold text-lg tracking-tight">ניהול תקציב וריווחיות - ProjectCheck</h1>
+          <h1 className="font-heebo font-semibold text-lg tracking-tight">ניהול תקציב וריווחיות - ProjectCheck</h1>
         </div>
         <div className="flex items-center gap-2">
           <button className="flex items-center gap-2 bg-surface-elevated border border-border hover:border-border-active text-fg-primary px-3 py-1.5 rounded text-xs font-semibold transition-colors">
@@ -50,7 +50,7 @@ export default function BudgetDashboardMockup({ budgetData = [], projectStats = 
         
         {/* Left Pane (3/16): Global Parameters */}
         <aside className="col-span-1 lg:col-span-3 bg-surface border border-border rounded-md flex flex-col p-4">
-          <h2 className="font-outfit font-medium text-sm text-fg-muted mb-4 tracking-tight uppercase">פרמטרי פרויקט</h2>
+          <h2 className="font-heebo font-medium text-sm text-fg-muted mb-4 tracking-tight uppercase">פרמטרי פרויקט</h2>
           
           <div className="space-y-4">
             <div className="flex flex-col gap-1.5">
@@ -79,7 +79,7 @@ export default function BudgetDashboardMockup({ budgetData = [], projectStats = 
         {/* Center Pane (9/16): Pro Forma Grid (Budget) */}
         <main className="col-span-1 lg:col-span-9 bg-surface border border-border rounded-md flex flex-col overflow-hidden">
           <div className="flex items-center justify-between border-b border-border bg-surface px-4 py-2">
-            <h2 className="font-outfit font-medium text-sm text-fg-primary tracking-tight">גיליון תקציב (Pro Forma)</h2>
+            <h2 className="font-heebo font-medium text-sm text-fg-primary tracking-tight">גיליון תקציב (Pro Forma)</h2>
             <button className="text-fg-muted hover:text-fg-primary"><Settings size={14} /></button>
           </div>
           
@@ -97,7 +97,7 @@ export default function BudgetDashboardMockup({ budgetData = [], projectStats = 
                 {sections.map((sec, idx) => (
                   <React.Fragment key={idx}>
                     <tr className="bg-surface-elevated border-y border-border">
-                      <td colSpan="4" className="py-1.5 px-4 font-outfit font-medium text-fg-primary tracking-tight text-[13px]">{sec.section}</td>
+                      <td colSpan="4" className="py-1.5 px-4 font-heebo font-medium text-fg-primary tracking-tight text-[13px]">{sec.section}</td>
                     </tr>
                     {sec.items.map((item, i) => (
                       <tr key={i} className={`border-b border-border/50 hover:bg-surface-elevated transition-colors ${i % 2 === 0 ? 'bg-surface' : 'bg-[#141417]'}`}>
@@ -115,7 +115,7 @@ export default function BudgetDashboardMockup({ budgetData = [], projectStats = 
           
           {/* Footer Summary */}
           <div className="border-t border-border bg-surface-elevated p-3 flex justify-between items-center">
-            <span className="font-outfit text-sm text-fg-muted">סה"כ תקציב פרויקט:</span>
+            <span className="font-heebo text-sm text-fg-muted">סה"כ תקציב פרויקט:</span>
             <span className="font-geist text-lg text-fg-primary font-semibold">{formatMoney(115000000)}</span>
           </div>
         </main>
@@ -123,7 +123,7 @@ export default function BudgetDashboardMockup({ budgetData = [], projectStats = 
         {/* Right Pane (4/16): Telemetry & KPIs */}
         <aside className="col-span-1 lg:col-span-4 bg-surface border border-border rounded-md flex flex-col overflow-hidden">
           <div className="border-b border-border bg-surface px-4 py-2">
-            <h2 className="font-outfit font-medium text-sm text-fg-primary tracking-tight">טלמטריה וריווחיות</h2>
+            <h2 className="font-heebo font-medium text-sm text-fg-primary tracking-tight">טלמטריה וריווחיות</h2>
           </div>
           
           <div className="p-4 flex flex-col gap-3 overflow-auto">

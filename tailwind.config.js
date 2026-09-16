@@ -32,8 +32,8 @@ export default {
         }
       },
       fontFamily: {
-        outfit: ['Outfit', 'sans-serif'],
-        inter: ['Inter', 'sans-serif'],
+        sans: ['Heebo', 'system-ui', 'sans-serif'],
+        heebo: ['Heebo', 'system-ui', 'sans-serif'],
         geist: ['Geist Mono', 'monospace'],
       },
       borderRadius: {

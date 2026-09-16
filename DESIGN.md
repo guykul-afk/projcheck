@@ -13,8 +13,8 @@ A high-agency, professional financial console that feels more like a **tactical 
 - **Exposure Rose** (#e11d48) — Expenses, loss, critical warnings.
 
 ## 3. Typography Rules
-- **Display:** **Outfit** — Track-tight (-0.02em), geometric, weights: 500, 700.
-- **Interface:** **Inter** — Standard readability for secondary UI text.
+- **Display:** **Heebo** — Track-tight (-0.02em), geometric, weights: 500, 700.
+- **Heeboface:** **Heebo** — Standard readability for secondary UI text.
 - **Financials/Meta:** **Geist Mono** — Strictly for all currency values, tables, and timestamps.
 - **Banned:** Generic system serifs, blue-tinted grays, and font weights below 400.
 
@@ -31,8 +31,8 @@ A high-agency, professional financial console that feels more like a **tactical 
 - **Maximum Width**: Constrained to 1600px for desktop console feel.
 - **No Overlapping**: Every element occupies a clean, distinct spatial zone.
 
-## 6. Motion & Interaction
-- **Spring Physics**: All interactive elements use `stiffness: 100, damping: 20` for a weighty, premium feel.
+## 6. Motion & Heeboaction
+- **Spring Physics**: All Heeboactive elements use `stiffness: 100, damping: 20` for a weighty, premium feel.
 - **Staggered Orchestration**: Project rows should cascade in with a 50ms stagger on load.
 - **Hardware Acceleration**: Animate ONLY `transform` and `opacity`. Use `will-change: transform` on high-density list items.
 
