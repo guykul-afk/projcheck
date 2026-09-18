@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { TrendingUp, ShieldCheck } from 'lucide-react';
 import { useAuth } from './AuthContext';
 
 const Login = () => {
@@ -45,29 +46,29 @@ const Login = () => {
         background: 'var(--bg-surface)',
         borderRadius: '16px',
         padding: '3.5rem 3rem',
-        boxShadow: 'var(--shadow-premium)',
+        boxShadow: 'var(--shadow-tactical)',
         textAlign: 'center',
         maxWidth: '420px',
         width: '90%',
         border: '1px solid var(--border-sharp)'
       }}>
-        {/* Logo */}
+        {/* Tactical Icon */}
         <div style={{
-          width: '72px',
-          height: '72px',
-          background: 'linear-gradient(135deg, var(--secondary), var(--accent))',
-          borderRadius: '18px',
+          width: '68px',
+          height: '68px',
+          background: 'rgba(16, 185, 129, 0.1)',
+          border: '1px solid rgba(16, 185, 129, 0.3)',
+          borderRadius: '16px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          margin: '0 auto 2rem',
-          fontSize: '32px',
-          boxShadow: '0 8px 16px rgba(38, 70, 83, 0.15)'
+          margin: '0 auto 1.75rem',
+          color: 'var(--accent)'
         }}>
-          📊
+          <TrendingUp size={32} />
         </div>
 
-        <h1 style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--text-pri)', margin: '0 0 0.75rem', letterSpacing: '-0.02em' }}>
+        <h1 style={{ fontSize: '1.85rem', fontWeight: 800, color: 'var(--text-pri)', margin: '0 0 0.5rem', letterSpacing: '-0.02em' }}>
           ProjectCheck
         </h1>
         <p style={{ color: 'var(--text-muted)', fontSize: '1rem', marginBottom: '2.5rem', lineHeight: 1.6 }}>

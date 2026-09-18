@@ -1,38 +1,49 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
 :root {
   --font-main: 'Heebo', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 
-  /* Canvas & Depth (Grayscale & Teal) */
-  --bg-canvas: #F4F4F9;   /* Off-white analytical background */
-  --bg-surface: #FFFFFF;  /* Clean white for cards/sections */
-  --bg-elevated: #E9E9F0; /* Subtle contrast for headers/tools */
+  /* Canvas & Tactical Dark Depth (Zinc System) */
+  --bg-canvas: #09090b;   /* Deep Zinc 950 base */
+  --bg-surface: #121215;  /* Tactical card & container surface */
+  --bg-elevated: #1c1c22; /* Controls, header bars, active indicators */
+  --bg-hover: #272730;    /* Interactive hover surface */
   
-  /* Borders & Dividers */
-  --border-sharp: #E2E8F0; /* Sleek light borders */
-  --border-subtle: rgba(226, 232, 240, 0.5);
+  /* Precision Borders */
+  --border-sharp: #27272a; /* 1px sharp structural border */
+  --border-subtle: rgba(63, 63, 70, 0.4);
+  --border-focus: #10b981;
+
+  /* High-Contrast Typography */
+  --text-pri: #fafafa;    /* High-contrast silver-white */
+  --text-sec: #a1a1aa;    /* Secondary blueprint zinc */
+  --text-muted: #71717a;  /* Inactive / hint zinc */
   
-  /* Text Layers */
-  --text-pri: #1A1A1E;    /* High-contrast charcoal */
-  --text-sec: #264653;    /* Deep Teal - professional indicator */
-  --text-muted: #6B7280;  /* Standard medium gray */
+  /* Primary Action & Brand Status */
+  --secondary: #27272a;
+  --accent: #10b981;      /* Execution Emerald */
+  --accent-hover: #059669;
+  --accent-subtle: rgba(16, 185, 129, 0.12);
+  --brand-sky: #38bdf8;
+  --brand-sky-subtle: rgba(56, 189, 248, 0.12);
+
+  /* Financial Status Colors */
+  --success: #10b981;     /* Emerald Profit */
+  --success-bg: rgba(16, 185, 129, 0.12);
+  --danger: #f43f5e;      /* Rose Exposure / Risk */
+  --danger-bg: rgba(244, 63, 94, 0.12);
+  --warning: #f59e0b;     /* Amber */
+  --warning-bg: rgba(245, 158, 11, 0.12);
   
-  /* Primary Action & Brand */
-  --secondary: #264653;   /* Deep Teal - Stability */
-  --accent: #58A6FF;      /* Electric Blue - Action */
-  
-  /* State Indicators (Analytical) */
-  --success: #3E4A3D;     /* Sage Green - Profit */
-  --danger: #E76F51;      /* Burnt Red - Loss/Risk */
-  --warning: #F4A261;     /* Sandy Orange */
-  
-  /* Layout */
-  --container-max: 1600px;
-  --radius-sharp: 0.2rem;
-  --radius-tactical: 0.4rem;
-  --shadow-premium: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-  --shadow-tactical: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02);
+  /* Structural Dimensions */
+  --container-max: 1680px;
+  --radius-sharp: 4px;
+  --radius-tactical: 6px;
+  --radius-pill: 9999px;
+  --shadow-premium: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-tactical: 0 10px 25px rgba(0, 0, 0, 0.6);
 }
 
 *, *::before, *::after {
@@ -63,39 +74,80 @@ body {
 .container {
   max-width: var(--container-max);
   margin: 0 auto;
-  padding: 2rem 3rem;
+  padding: 1.5rem 2.5rem 3rem 2.5rem;
 }
 
-/* --- Premium Components --- */
+/* Custom Tactical Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-canvas);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-sharp);
+  border-radius: var(--radius-sharp);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
 
+/* --- Tactical Cards --- */
 .tactical-card {
   background: var(--bg-surface);
   border: 1px solid var(--border-sharp);
-  border-radius: var(--radius-sharp);
-  padding: 1.5rem;
+  border-radius: var(--radius-tactical);
+  padding: 1.25rem;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: var(--shadow-premium);
+  position: relative;
 }
 
 .tactical-card:hover {
-  border-color: var(--accent);
+  border-color: rgba(16, 185, 129, 0.4);
   box-shadow: var(--shadow-tactical);
-  transform: translateY(-2px);
 }
 
 .mono-number {
-  font-family: 'JetBrains Mono', 'Geist Mono', monospace !important;
+  font-family: 'JetBrains Mono', monospace !important;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+}
+
+/* --- Delta Trend Pills --- */
+.delta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace !important;
+}
+.delta-pill.positive {
+  background: var(--success-bg);
+  color: var(--success);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.delta-pill.negative {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+.delta-pill.neutral {
+  background: rgba(161, 161, 170, 0.1);
+  color: var(--text-sec);
+  border: 1px solid var(--border-sharp);
 }
 
 /* --- Bento Grid System --- */
-
 .bento-grid {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
-  gap: 1.25rem;
+  gap: 1rem;
 }
 
 .col-1 { grid-column: span 1; }
@@ -111,106 +163,199 @@ body {
 .col-11 { grid-column: span 11; }
 .col-12 { grid-column: span 12; }
 
-/* --- Tables (High Density Analytical) --- */
+@media (max-width: 1200px) {
+  .bento-grid {
+    grid-template-columns: repeat(6, 1fr);
+  }
+  .col-3, .col-4 { grid-column: span 3; }
+  .col-8, .col-9 { grid-column: span 6; }
+}
 
+@media (max-width: 768px) {
+  .bento-grid {
+    grid-template-columns: 1fr;
+  }
+  .col-1, .col-2, .col-3, .col-4, .col-5, .col-6, .col-7, .col-8, .col-9, .col-10, .col-11, .col-12 {
+    grid-column: span 1;
+  }
+}
+
+/* --- High-Density Data Tables --- */
 .table-container {
   background: var(--bg-surface);
   border: 1px solid var(--border-sharp);
-  border-radius: var(--radius-sharp);
-  overflow: hidden;
-  margin-top: 1rem;
+  border-radius: var(--radius-tactical);
+  overflow: auto;
+  max-height: 720px;
   box-shadow: var(--shadow-premium);
+  position: relative;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
   text-align: right;
-  font-size: 0.85rem;
+  font-size: 0.825rem;
 }
 
-th {
-  background: var(--bg-canvas);
-  padding: 0.85rem 1rem;
-  font-weight: 600;
+thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #15151a !important;
+  backdrop-filter: blur(8px);
+  padding: 0.75rem 0.9rem;
+  font-weight: 700;
   color: var(--text-sec);
   border-bottom: 2px solid var(--border-sharp);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  font-size: 0.72rem;
+  white-space: nowrap;
 }
 
 td {
-  padding: 0.4rem 0.6rem;
+  padding: 0.45rem 0.75rem;
   border-bottom: 1px solid var(--border-subtle);
   color: var(--text-pri);
   vertical-align: middle;
+  transition: background 0.15s ease;
 }
 
 tr:hover td {
-  background: rgba(88, 166, 255, 0.03); /* Electric Blue hint */
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .section-header {
   background: var(--bg-elevated) !important;
-  font-weight: 700;
-  color: var(--secondary);
-  border-top: 3px solid var(--secondary);
-}
-
-/* --- Tabs (Analytical Nav) --- */
-
-.tabs {
-  display: flex;
-  gap: 2px;
-  background: var(--bg-elevated);
-  padding: 4px;
-  border-radius: var(--radius-sharp);
-  margin-bottom: 2.5rem;
-  width: fit-content;
-  border: 1px solid var(--border-sharp);
-}
-
-.tab {
-  padding: 0.6rem 1.5rem;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  transition: all 0.2s ease;
-  border-radius: 2px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.tab:hover {
+  font-weight: 800;
   color: var(--text-pri);
-  background: rgba(0, 0, 0, 0.02);
+  border-top: 2px solid var(--border-sharp);
 }
 
-.tab.active {
+/* --- Workspaces & Segmented Hub --- */
+.workspace-hub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   background: var(--bg-surface);
-  color: var(--secondary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  padding: 4px;
+  border: 1px solid var(--border-sharp);
+  border-radius: var(--radius-tactical);
+  box-shadow: var(--shadow-premium);
+}
+
+.workspace-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0.6rem 1.1rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-sec);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sharp);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.workspace-btn:hover {
+  color: var(--text-pri);
+  background: var(--bg-hover);
+}
+
+.workspace-btn.active {
+  background: var(--bg-elevated);
+  color: var(--accent);
+  border-color: rgba(16, 185, 129, 0.3);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.subviews-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 0.75rem;
+  margin-bottom: 2rem;
+  padding: 4px;
+}
+
+.subview-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.4rem 0.9rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-sharp);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.subview-pill:hover {
+  color: var(--text-pri);
+  border-color: var(--text-sec);
+}
+
+.subview-pill.active {
+  background: var(--accent-subtle);
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+/* --- Quick Filter Chips --- */
+.filter-chips-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  padding: 3px 10px;
+  border-radius: var(--radius-sharp);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-sharp);
+  color: var(--text-sec);
+  transition: all 0.15s ease;
+}
+
+.filter-chip:hover {
+  color: var(--text-pri);
+  border-color: var(--accent);
+}
+
+.filter-chip.active {
+  background: var(--accent);
+  color: #09090b;
+  border-color: var(--accent);
+  font-weight: 800;
 }
 
 /* --- Inputs & Actions --- */
-
-input {
-  background: var(--bg-surface);
+input, select {
+  background: var(--bg-elevated);
   color: var(--text-pri);
   border: 1px solid var(--border-sharp);
-  border-radius: 2px;
+  border-radius: var(--radius-sharp);
   padding: 0.45rem 0.75rem;
   font-family: 'JetBrains Mono', monospace;
   font-size: 0.85rem;
   outline: none;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
 }
 
-input:focus {
+input:focus, select:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.1);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
 }
 
 .compact-input {
@@ -219,26 +364,73 @@ input:focus {
 }
 
 select.compact-input {
-  padding: 0.15rem 0.25rem !important;
+  padding: 0.2rem 0.35rem !important;
 }
 
 button.primary {
   background: var(--accent);
-  color: white;
+  color: #09090b;
   border: none;
-  padding: 0.6rem 1.2rem;
+  padding: 0.55rem 1.2rem;
   border-radius: var(--radius-sharp);
-  font-weight: 600;
+  font-weight: 800;
+  font-size: 0.825rem;
   cursor: pointer;
-  transition: filter 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
 }
 
 button.primary:hover {
-  filter: brightness(1.1);
+  background: var(--accent-hover);
+  transform: translateY(-1px);
 }
 
-/* --- Utility Animations --- */
+button.primary:active {
+  transform: translateY(0);
+}
 
+/* --- Toast Feedback --- */
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast-box {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #15151a;
+  color: var(--text-pri);
+  padding: 10px 18px;
+  border-radius: var(--radius-tactical);
+  border: 1px solid var(--accent);
+  box-shadow: var(--shadow-tactical);
+  font-size: 0.85rem;
+  font-weight: 600;
+  animation: toastSlide 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes toastSlide {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* --- Utility Classes --- */
 .hardware-accelerated {
   will-change: transform, opacity;
   backface-visibility: hidden;
@@ -247,35 +439,31 @@ button.primary:hover {
 .success-text { color: var(--success); }
 .danger-text { color: var(--danger); }
 .warning-text { color: var(--warning); }
+.brand-text { color: var(--brand-sky); }
 
 /* --- Chart Overrides --- */
 .chart-tooltip {
-  background: var(--bg-surface) !important;
+  background: #15151a !important;
   border: 1px solid var(--border-sharp) !important;
-  border-radius: var(--radius-sharp) !important;
+  border-radius: var(--radius-tactical) !important;
   color: var(--text-pri) !important;
   box-shadow: var(--shadow-tactical) !important;
-  padding: 10px !important;
+  padding: 12px 16px !important;
   z-index: 100;
+  font-size: 0.8rem;
 }
 
 .balance-line {
   fill: none;
   stroke: var(--accent);
-  stroke-width: 3;
+  stroke-width: 2.5;
   stroke-linecap: round;
   stroke-linejoin: round;
-  filter: drop-shadow(0 2px 4px rgba(88, 166, 255, 0.2));
 }
 
 .chart-axis-label {
   font-family: 'Heebo', sans-serif;
   font-size: 11px;
   fill: var(--text-muted);
-}
-
-.negative-zone {
-  fill: url(#negGradient);
-  opacity: 0.15;
 }
 

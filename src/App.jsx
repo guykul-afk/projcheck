@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   PieChart, FileText, Save, Calculator, Building, 
   Activity, ChevronDown, ChevronUp, Plus, Trash, Info, HelpCircle, List, MapPin, LogOut, BarChart2, TrendingUp, Copy, Layers,
-  Zap, ShieldAlert, Loader, PlayCircle, Database, ArrowUpDown, ArrowUp, ArrowDown, GripVertical, Sliders, GitCompare, Check
+  Zap, ShieldAlert, Loader, PlayCircle, Database, ArrowUpDown, ArrowUp, ArrowDown, GripVertical, Sliders, GitCompare, Check,
+  CheckCircle2, Sparkles, FolderKanban, ChevronLeft, CheckCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -508,6 +509,47 @@ const EXPLANATIONS = {
   }
 };
 
+const WORKSPACES = [
+  {
+    id: 'financial',
+    label: 'מודל פיננסי',
+    icon: Calculator,
+    tabs: [
+      { id: 'budget', label: 'תקציב והוצאות', icon: Calculator },
+      { id: 'profit', label: 'דו"ח רווחיות', icon: Activity },
+      { id: 'planning', label: 'נתוני תכנון', icon: FileText }
+    ]
+  },
+  {
+    id: 'inventory_hub',
+    label: 'מלאי ומרחב',
+    icon: Building,
+    tabs: [
+      { id: 'inventory', label: 'טבלת מלאי', icon: Building },
+      { id: 'matrix', label: 'תיאום מרחבי', icon: Layers }
+    ]
+  },
+  {
+    id: 'cashflow_risk',
+    label: 'תזרים וסיכונים',
+    icon: TrendingUp,
+    tabs: [
+      { id: 'cashflow', label: 'תזרים חודשי', icon: TrendingUp },
+      { id: 'scurve', label: 'עקומת S וחשיפה', icon: Sliders },
+      { id: 'montecarlo', label: 'מניפת סיכונים', icon: Zap }
+    ]
+  },
+  {
+    id: 'strategy',
+    label: 'אסטרטגיה ופורטפוליו',
+    icon: GitCompare,
+    tabs: [
+      { id: 'compare', label: 'השוואת תרחישים', icon: GitCompare },
+      { id: 'portfolio', label: 'תיק פרויקטים', icon: List }
+    ]
+  }
+];
+
 const App = () => {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('budget');
@@ -517,6 +559,13 @@ const App = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [hoveredMonth, setHoveredMonth] = useState(null);
   const [bulkAdjustmentPct, setBulkAdjustmentPct] = useState(1.0);
+  const [toastMessage, setToastMessage] = useState(null);
+  const [inventoryFilter, setInventoryFilter] = useState('all'); // 'all' | 'dev' | 'owner' | 'special'
+
+  const showToast = useCallback((msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  }, []);
   
   // Owner <-> Developer Sqm Balancing state
   const [ownerSqmDelta, setOwnerSqmDelta] = useState(5);
@@ -600,6 +649,36 @@ const App = () => {
       updatedAt: new Date().toISOString()
     }).catch(console.error).finally(() => setIsSaving(false));
   }, [user]);
+
+  const handleManualSave = useCallback(() => {
+    saveToFirestore(projects, activeProjectId, activeTab);
+    showToast('הנתונים סונכרנו בהצלחה לענן');
+  }, [saveToFirestore, projects, activeProjectId, activeTab, showToast]);
+
+  // Global keyboard shortcut Ctrl+S / Cmd+S
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        handleManualSave();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleManualSave]);
+
+  // Workspace Navigation Helpers
+  const currentWorkspace = useMemo(() => {
+    return WORKSPACES.find(ws => ws.tabs.some(t => t.id === activeTab)) || WORKSPACES[0];
+  }, [activeTab]);
+
+  const handleWorkspaceSelect = (wsId) => {
+    const targetWs = WORKSPACES.find(w => w.id === wsId);
+    if (!targetWs) return;
+    if (!targetWs.tabs.some(t => t.id === activeTab)) {
+      setActiveTab(targetWs.tabs[0].id);
+    }
+  };
 
   // Auto-save whenever state changes (debounced via useEffect)
   useEffect(() => {
@@ -702,10 +781,19 @@ const App = () => {
 
   const inventoryStats = useMemo(() => computeInventoryStats(inventoryData, activeProject), [inventoryData, activeProject]);
 
-  // Sorted Inventory Data
+  // Filtered & Sorted Inventory Data
   const sortedInventoryData = useMemo(() => {
-    if (!inventorySort.key) return inventoryData;
-    return [...inventoryData].sort((a, b) => {
+    let list = inventoryData;
+    if (inventoryFilter === 'dev') {
+      list = list.filter(a => a.type === 'יזם' || (a.contractorSharePct ?? 0) > 0);
+    } else if (inventoryFilter === 'owner') {
+      list = list.filter(a => a.type === 'בעלים' || (a.contractorSharePct ?? (a.type === 'יזם' ? 100 : 0)) === 0);
+    } else if (inventoryFilter === 'special') {
+      list = list.filter(a => a.category === 'מיוחדת');
+    }
+
+    if (!inventorySort.key) return list;
+    return [...list].sort((a, b) => {
       let vA = inventorySort.key === 'sqmPrice' ? (a.area > 0 ? a.price / a.area : 0) : a[inventorySort.key];
       let vB = inventorySort.key === 'sqmPrice' ? (b.area > 0 ? b.price / b.area : 0) : b[inventorySort.key];
       
@@ -723,7 +811,7 @@ const App = () => {
       const res = vA < vB ? -1 : 1;
       return inventorySort.direction === 'asc' ? res : -res;
     });
-  }, [inventoryData, inventorySort]);
+  }, [inventoryData, inventorySort, inventoryFilter]);
 
   // Sqm Balancing Preview calculations
   const sqmBalanceStats = useMemo(() => {
@@ -1467,94 +1555,99 @@ const App = () => {
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center', 
-        padding: '2rem 0',
+        padding: '1.25rem 0',
         borderBottom: '1px solid var(--border-sharp)',
-        marginBottom: '2rem'
+        marginBottom: '1.5rem',
+        gap: '1.5rem',
+        flexWrap: 'wrap'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-          <button
-            onClick={() => setActiveTab('portfolio')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '0.6rem 1.2rem',
-              borderRadius: 'var(--radius-sharp)',
-              border: activeTab === 'portfolio' ? '2px solid var(--accent)' : '1px solid var(--border-sharp)',
-              background: activeTab === 'portfolio' ? 'var(--bg-elevated)' : 'var(--bg-surface)',
-              color: activeTab === 'portfolio' ? 'var(--accent)' : 'var(--text-sec)',
-              fontWeight: 700,
-              fontSize: '0.9rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
-          >
-            <List size={18} /> פורטפוליו
-          </button>
-          
+        {/* Right Section: Brand & Breadcrumb */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h1 style={{ fontSize: '1.25rem', fontWeight: 900, letterSpacing: '-0.02em', color: 'var(--text-pri)', margin: 0 }}>
+              ProjectCheck
+            </h1>
+            <span style={{ 
+              fontSize: '0.65rem', 
+              fontWeight: 800, 
+              letterSpacing: '0.05em', 
+              padding: '2px 6px', 
+              borderRadius: 'var(--radius-sharp)', 
+              background: 'var(--accent-subtle)', 
+              color: 'var(--accent)',
+              border: '1px solid rgba(16, 185, 129, 0.3)'
+            }}>
+              TACTICAL CONSOLE
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            <span style={{ color: 'var(--text-sec)', fontWeight: 600 }}>{activeProject?.name || 'פרויקט'}</span>
+            <ChevronLeft size={12} style={{ opacity: 0.5 }} />
+            <span style={{ color: 'var(--text-muted)' }}>{currentWorkspace?.label}</span>
+            <ChevronLeft size={12} style={{ opacity: 0.5 }} />
+            <span style={{ color: 'var(--accent)', fontWeight: 700 }}>
+              {currentWorkspace?.tabs.find(t => t.id === activeTab)?.label || ''}
+            </span>
+          </div>
         </div>
         
-        {/* Project Selector - Dropdown Style */}
+        {/* Center Section: Project Selector */}
         <div 
           style={{ 
             display: 'flex', 
             alignItems: 'center',
             background: 'var(--bg-surface)', 
-            padding: '8px 16px', 
-            borderRadius: 'var(--radius-sharp)', 
+            padding: '6px 14px', 
+            borderRadius: 'var(--radius-tactical)', 
             gap: '12px',
-            border: activeTab !== 'portfolio' ? '2px solid var(--accent)' : '1px solid var(--border-sharp)',
-            transition: 'all 0.2s',
-            boxShadow: 'var(--shadow-sm)'
+            border: '1px solid var(--border-sharp)',
+            boxShadow: 'var(--shadow-premium)'
           }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             {/* Project Name Editor */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>שם הפרויקט:</span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>שם פרויקט:</span>
               <input
                 value={activeProject?.name || ''}
                 onChange={(e) => updateProject({ name: e.target.value })}
                 placeholder="הזן שם פרויקט..."
                 style={{
-                  background: 'var(--bg-canvas)',
+                  background: 'var(--bg-elevated)',
                   border: '1px solid var(--border-sharp)',
-                  borderRadius: '4px',
-                  padding: '4px 10px',
-                  fontSize: '0.85rem',
-                  fontWeight: 800,
-                  color: 'var(--accent)',
-                  width: '200px',
-                  textAlign: 'right',
-                  outline: 'none',
-                  transition: 'border-color 0.2s'
+                  borderRadius: 'var(--radius-sharp)',
+                  padding: '4px 8px',
+                  fontSize: '0.82rem',
+                  fontWeight: 700,
+                  color: 'var(--text-pri)',
+                  width: '180px',
+                  textAlign: 'right'
                 }}
-                onFocus={(e) => e.target.style.borderColor = 'var(--accent)'}
-                onBlur={(e) => e.target.style.borderColor = 'var(--border-sharp)'}
               />
             </div>
 
-            <div style={{ width: '1px', height: '20px', background: 'var(--border-sharp)' }} />
+            <div style={{ width: '1px', height: '18px', background: 'var(--border-sharp)' }} />
 
+            {/* Project Dropdown */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>בחירת פרויקט:</span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>החלף פרויקט:</span>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <select
                   value={activeProjectId}
                   onChange={(e) => {
                     setActiveProjectId(e.target.value);
-                    if (activeTab === 'portfolio') setActiveTab('budget');
                   }}
                   style={{
-                    padding: '6px 32px 6px 12px',
-                    borderRadius: '6px',
+                    padding: '5px 28px 5px 10px',
+                    borderRadius: 'var(--radius-sharp)',
                     border: '1px solid var(--border-sharp)',
-                    background: 'var(--bg-canvas)',
+                    background: 'var(--bg-elevated)',
                     color: 'var(--text-pri)',
-                    fontSize: '0.85rem',
+                    fontSize: '0.82rem',
                     fontWeight: 700,
                     appearance: 'none',
                     cursor: 'pointer',
-                    minWidth: '180px',
+                    minWidth: '160px',
                     outline: 'none',
                     textAlign: 'right'
                   }}
@@ -1563,28 +1656,29 @@ const App = () => {
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
-                <ChevronDown size={14} style={{ position: 'absolute', left: '8px', pointerEvents: 'none', opacity: 0.5 }} />
+                <ChevronDown size={14} style={{ position: 'absolute', left: '8px', pointerEvents: 'none', opacity: 0.6 }} />
               </div>
             </div>
           </div>
 
-          <div style={{ width: '1px', height: '20px', background: 'var(--border-sharp)' }} />
+          <div style={{ width: '1px', height: '18px', background: 'var(--border-sharp)' }} />
 
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          {/* Quick Actions */}
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <button
               title={activeProject?.includeInPortfolio !== false ? "כלול בפורטפוליו" : "לא כלול בפורטפוליו"}
               onClick={() => {
                 const val = activeProject?.includeInPortfolio === false;
                 updateProject({ includeInPortfolio: val });
               }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', transition: 'transform 0.2s', transform: activeProject?.includeInPortfolio !== false ? 'scale(1.1)' : 'scale(1)' }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', transition: 'all 0.2s', opacity: activeProject?.includeInPortfolio !== false ? 1 : 0.4 }}
             >
               <Activity size={16} color={activeProject?.includeInPortfolio !== false ? 'var(--accent)' : 'var(--text-muted)'} />
             </button>
             <button
               title="שכפול פרויקט"
               onClick={(e) => duplicateProject(activeProjectId, e)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', opacity: 0.6 }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', opacity: 0.6, color: 'var(--text-sec)' }}
             >
               <Copy size={16} />
             </button>
@@ -1592,7 +1686,7 @@ const App = () => {
               <button
                 title="מחיקת פרויקט"
                 onClick={(e) => deleteProject(activeProjectId, e)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', opacity: 0.6 }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', opacity: 0.6, color: 'var(--danger)' }}
               >
                 <Trash size={16} />
               </button>
@@ -1604,52 +1698,46 @@ const App = () => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '28px',
-                height: '28px',
+                width: '26px',
+                height: '26px',
                 borderRadius: '50%',
-                border: '1px dashed var(--border-sharp)',
-                background: 'var(--bg-canvas)',
+                border: '1px dashed var(--accent)',
+                background: 'var(--accent-subtle)',
                 cursor: 'pointer',
                 color: 'var(--accent)',
                 transition: 'all 0.2s'
               }}
             >
-              <Plus size={16} />
+              <Plus size={14} />
             </button>
           </div>
         </div>
 
+        {/* Left Section: Cloud Sync, Save & Logout */}
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          {isSaving && (
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: 10, height: 10, border: '2px solid var(--border-sharp)', borderTop: '2px solid var(--accent)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-              מסנכרן...
+          {isSaving ? (
+            <span style={{ fontSize: '0.75rem', color: 'var(--brand-sky)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ width: 10, height: 10, border: '2px solid var(--border-sharp)', borderTop: '2px solid var(--brand-sky)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              מסנכרן לענן...
+            </span>
+          ) : (
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <CheckCircle2 size={14} color="var(--accent)" />
+              <span>סונכרן לענן</span>
+              <kbd style={{ fontSize: '0.65rem', background: 'var(--bg-elevated)', padding: '1px 5px', borderRadius: '3px', border: '1px solid var(--border-sharp)', color: 'var(--text-sec)' }}>Ctrl+S</kbd>
             </span>
           )}
           <button
-            onClick={() => saveToFirestore(projects, activeProjectId, activeTab)}
-            className="tab active"
-            style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '8px', 
-              background: 'var(--accent)', 
-              color: 'var(--bg-canvas)',
-              border: 'none',
-              padding: '0.6rem 1.2rem',
-              borderRadius: 'var(--radius-sharp)',
-              fontWeight: 700,
-              fontSize: '0.8rem',
-              cursor: 'pointer'
-            }}
+            onClick={handleManualSave}
+            className="primary"
           >
-            <Save size={16} /> שמירה
+            <Save size={15} /> שמירה
           </button>
           <button
             onClick={logout}
             title={`התנתקות מ-${user?.email}`}
             style={{
-              padding: '0.6rem 1rem', 
+              padding: '0.55rem 0.9rem', 
               borderRadius: 'var(--radius-sharp)', 
               border: '1px solid var(--border-sharp)',
               background: 'var(--bg-surface)', 
@@ -1662,43 +1750,48 @@ const App = () => {
               transition: 'all 0.2s'
             }}
           >
-            <LogOut size={16} /> יציאה
+            <LogOut size={15} /> יציאה
           </button>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       </header>
 
-      {activeTab !== 'portfolio' && (
-        <div className="tabs" style={{ marginBottom: '2.5rem', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-          <div className={`tab ${activeTab === 'budget' ? 'active' : ''}`} onClick={() => setActiveTab('budget')}>
-            <Calculator size={14} style={{ marginLeft: '8px' }} /> תקציב
-          </div>
-          <div className={`tab ${activeTab === 'inventory' ? 'active' : ''}`} onClick={() => setActiveTab('inventory')}>
-            <Building size={14} style={{ marginLeft: '8px' }} /> מלאי (טבלה)
-          </div>
-          <div className={`tab ${activeTab === 'matrix' ? 'active' : ''}`} onClick={() => setActiveTab('matrix')}>
-            <Layers size={14} style={{ marginLeft: '8px' }} /> תאום מרחבי
-          </div>
-          <div className={`tab ${activeTab === 'profit' ? 'active' : ''}`} onClick={() => setActiveTab('profit')}>
-            <Activity size={14} style={{ marginLeft: '8px' }} /> רווחיות
-          </div>
-          <div className={`tab ${activeTab === 'cashflow' ? 'active' : ''}`} onClick={() => setActiveTab('cashflow')}>
-            <TrendingUp size={14} style={{ marginLeft: '8px' }} /> תזרים חודשי
-          </div>
-          <div className={`tab ${activeTab === 'scurve' ? 'active' : ''}`} onClick={() => setActiveTab('scurve')}>
-            <Sliders size={14} style={{ marginLeft: '8px' }} /> עקומת S וחשיפה
-          </div>
-          <div className={`tab ${activeTab === 'montecarlo' ? 'active' : ''}`} onClick={() => setActiveTab('montecarlo')}>
-            <Zap size={14} style={{ marginLeft: '8px' }} /> מניפת סיכונים
-          </div>
-          <div className={`tab ${activeTab === 'compare' ? 'active' : ''}`} onClick={() => setActiveTab('compare')}>
-            <GitCompare size={14} style={{ marginLeft: '8px' }} /> השוואת תרחישים
-          </div>
-          <div className={`tab ${activeTab === 'planning' ? 'active' : ''}`} onClick={() => setActiveTab('planning')}>
-            <FileText size={14} style={{ marginLeft: '8px' }} /> נתוני תכנון
-          </div>
-        </div>
-      )}
+      {/* Workspaces Navigation Segmented Hub */}
+      <div className="workspace-hub">
+        {WORKSPACES.map(ws => {
+          const WsIcon = ws.icon;
+          const isActive = currentWorkspace?.id === ws.id;
+          return (
+            <button
+              key={ws.id}
+              onClick={() => handleWorkspaceSelect(ws.id)}
+              className={`workspace-btn ${isActive ? 'active' : ''}`}
+            >
+              <WsIcon size={16} />
+              <span>{ws.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Sub-views Pills for the Active Workspace */}
+      <div className="subviews-bar">
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, marginLeft: '6px' }}>תצוגה:</span>
+        {currentWorkspace?.tabs.map(tab => {
+          const TabIcon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`subview-pill ${isActive ? 'active' : ''}`}
+            >
+              <TabIcon size={14} />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
 
       <AnimatePresence mode="wait">
         <motion.div key={activeTab} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.2 }}>
@@ -2025,9 +2118,11 @@ const App = () => {
                           <tbody>
                              {sortedMarketTransactions.map((comp, idx) => (
                               <tr key={idx}>
-                                <td>{comp.address}</td>
-                                <td className="mono-number" style={{ fontWeight: 600 }}>₪{comp.price.toLocaleString()}</td>
-                                <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{comp.date}</td>
+                                <td>{comp.address || (comp.street ? `${comp.street} ${comp.houseNumber || ''}`.trim() : '-')}</td>
+                                <td className="mono-number" style={{ fontWeight: 600 }}>
+                                  ₪{Number(comp.price || comp.sqmPrice || 0).toLocaleString()}
+                                </td>
+                                <td style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{comp.date || '-'}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -2048,16 +2143,24 @@ const App = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {analysisResult.pipelineProjects.map((p, idx) => (
-                              <tr key={idx}>
-                                <td>
-                                  <div style={{ fontWeight: 600 }}>{p.name}</div>
-                                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{p.status}</div>
+                            {(analysisResult.pipelineProjects && analysisResult.pipelineProjects.length > 0) ? (
+                              analysisResult.pipelineProjects.map((p, idx) => (
+                                <tr key={idx}>
+                                  <td>
+                                    <div style={{ fontWeight: 600 }}>{p.name}</div>
+                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{p.status}</div>
+                                  </td>
+                                  <td className="mono-number">{p.units}</td>
+                                  <td style={{ fontSize: '0.75rem' }}>{p.distance}</td>
+                                </tr>
+                              ))
+                            ) : (
+                              <tr>
+                                <td colSpan="3" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '1rem', fontSize: '0.8rem' }}>
+                                  לא נמצאו פרויקטים מתחרים בצנרת התכנון עבור אזור זה
                                 </td>
-                                <td className="mono-number">{p.units}</td>
-                                <td style={{ fontSize: '0.75rem' }}>{p.distance}</td>
                               </tr>
-                            ))}
+                            )}
                           </tbody>
                         </table>
                       </div>
@@ -2222,6 +2325,34 @@ const App = () => {
                     <h3 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-pri)', margin: 0 }}>
                       ניהול מלאי ופעולות רוחביות
                     </h3>
+
+                    {/* Quick Filter Chips */}
+                    <div className="filter-chips-row">
+                      <button
+                        onClick={() => setInventoryFilter('all')}
+                        className={`filter-chip ${inventoryFilter === 'all' ? 'active' : ''}`}
+                      >
+                        כל הדירות ({inventoryData.length})
+                      </button>
+                      <button
+                        onClick={() => setInventoryFilter('dev')}
+                        className={`filter-chip ${inventoryFilter === 'dev' ? 'active' : ''}`}
+                      >
+                        יזם ({Math.round(inventoryStats.devUnits)})
+                      </button>
+                      <button
+                        onClick={() => setInventoryFilter('owner')}
+                        className={`filter-chip ${inventoryFilter === 'owner' ? 'active' : ''}`}
+                      >
+                        בעלים ({Math.round(inventoryStats.ownerUnits)})
+                      </button>
+                      <button
+                        onClick={() => setInventoryFilter('special')}
+                        className={`filter-chip ${inventoryFilter === 'special' ? 'active' : ''}`}
+                      >
+                        מיוחדות
+                      </button>
+                    </div>
                     
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 12px', background: 'var(--bg-canvas)', borderRadius: '4px', border: '1px dashed var(--accent)' }}>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)' }}>עדכון מחירים (%):</span>
@@ -4201,6 +4332,16 @@ const App = () => {
           bottom: 150%;
         }
       `}</style>
+
+      {/* Floating Toast Notification */}
+      {toastMessage && (
+        <div className="toast-container">
+          <div className="toast-box">
+            <CheckCircle size={16} color="var(--accent)" />
+            <span>{toastMessage}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
