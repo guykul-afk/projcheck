@@ -301,7 +301,7 @@ function calculateIRR(cashflows) {
 
 // ─── Pure: risk level from KPIs (Sage & Burnt Red) ───
 function getProjectRisk(profitPct,annualRoe,irr){
-  if(profitPct>25&&annualRoe>15&&(irr==null||irr>20))return{level:'green',color:'#3E4A3D',bg:'#e2e8e2',label:'בריא',icon:'🟢'};
+  if(profitPct>25&&annualRoe>15&&(irr==null||irr>20))return{level:'green',color:'#06b6d4',bg:'rgba(6, 182, 212, 0.15)',label:'בריא',icon:'🔵'};
   if(profitPct>15&&annualRoe>10&&(irr==null||irr>12))return{level:'yellow',color:'#F4A261',bg:'#fef3c7',label:'גבולי',icon:'🟡'};
   return{level:'red',color:'#E76F51',bg:'#fdecec',label:'בעייתי',icon:'🔴'};
 }
@@ -1575,7 +1575,7 @@ const App = () => {
               borderRadius: 'var(--radius-sharp)', 
               background: 'var(--accent-subtle)', 
               color: 'var(--accent)',
-              border: '1px solid rgba(16, 185, 129, 0.3)'
+              border: '1px solid rgba(6, 182, 212, 0.3)'
             }}>
               TACTICAL CONSOLE
             </span>
@@ -2251,8 +2251,8 @@ const App = () => {
               {/* Combination Deal Control Card */}
               <div className="tactical-card" style={{
                 padding: '0.9rem 1.25rem',
-                background: activeProject?.isCombinationDeal ? 'rgba(16, 185, 129, 0.05)' : 'var(--bg-surface)',
-                border: activeProject?.isCombinationDeal ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--border-sharp)',
+                background: activeProject?.isCombinationDeal ? 'rgba(6, 182, 212, 0.05)' : 'var(--bg-surface)',
+                border: activeProject?.isCombinationDeal ? '1px solid rgba(6, 182, 212, 0.35)' : '1px solid var(--border-sharp)',
                 display: 'flex',
                 flexWrap: 'wrap',
                 justifyContent: 'space-between',
@@ -2287,7 +2287,7 @@ const App = () => {
                         <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>%</span>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(16, 185, 129, 0.1)', padding: '4px 10px', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(6, 182, 212, 0.1)', padding: '4px 10px', borderRadius: '4px', border: '1px solid rgba(6, 182, 212, 0.25)' }}>
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-sec)', fontWeight: 600 }}>אחוז היזם (מחושב):</span>
                         <span className="mono-number" style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--success)' }}>
                           {(100 - (activeProject?.combinationLandownerPct ?? 40)).toFixed(1)}%
@@ -2494,9 +2494,9 @@ const App = () => {
                           step="1"
                           value={devTransferRatio}
                           onChange={(e) => setDevTransferRatio(parseFloat(e.target.value) || 0)}
-                          style={{ width: '55px', padding: '3px 6px', fontSize: '0.9rem', fontWeight: 800, textAlign: 'center', background: 'var(--bg-surface)', border: '1px solid #10b981', borderRadius: '4px', color: '#10b981' }}
+                          style={{ width: '55px', padding: '3px 6px', fontSize: '0.9rem', fontWeight: 800, textAlign: 'center', background: 'var(--bg-surface)', border: '1px solid #06b6d4', borderRadius: '4px', color: '#06b6d4' }}
                         />
-                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#10b981' }}>%</span>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#06b6d4' }}>%</span>
                       </div>
 
                       {/* 3. Mode selector */}
@@ -2595,10 +2595,10 @@ const App = () => {
                     {sqmBalanceFeedback && (
                       <div style={{
                         padding: '8px 14px',
-                        background: 'rgba(16, 185, 129, 0.15)',
-                        border: '1px solid #10b981',
+                        background: 'rgba(6, 182, 212, 0.15)',
+                        border: '1px solid #06b6d4',
                         borderRadius: '4px',
-                        color: '#10b981',
+                        color: '#06b6d4',
                         fontSize: '0.8rem',
                         fontWeight: 700,
                         display: 'flex',

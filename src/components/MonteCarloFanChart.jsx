@@ -71,7 +71,7 @@ export default function MonteCarloFanChart({ project }) {
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#27272a] pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <Activity className="text-[#10b981]" size={20} />
+            <Activity className="text-[#06b6d4]" size={20} />
             <h3 className="text-lg font-bold tracking-tight text-[#fafafa]">
               מניפת סיכונים והתפלגות רווח (Monte Carlo Fan Chart)
             </h3>
@@ -104,9 +104,9 @@ export default function MonteCarloFanChart({ project }) {
         <div className="bg-[#09090b] border border-[#27272a] p-3 rounded">
           <div className="flex items-center justify-between text-[11px] text-[#a1a1aa]">
             <span>הסתברות להפסד (P-Loss)</span>
-            <AlertTriangle size={13} className={stats.probLoss > 5 ? 'text-[#e11d48]' : 'text-[#10b981]'} />
+            <AlertTriangle size={13} className={stats.probLoss > 5 ? 'text-[#e11d48]' : 'text-[#06b6d4]'} />
           </div>
-          <div className={`text-xl font-mono font-bold mt-1 ${stats.probLoss > 5 ? 'text-[#e11d48]' : 'text-[#10b981]'}`}>
+          <div className={`text-xl font-mono font-bold mt-1 ${stats.probLoss > 5 ? 'text-[#e11d48]' : 'text-[#06b6d4]'}`}>
             {stats.probLoss.toFixed(1)}%
           </div>
           <div className="text-[10px] text-[#a1a1aa] mt-0.5">
@@ -126,7 +126,7 @@ export default function MonteCarloFanChart({ project }) {
 
         <div className="bg-[#09090b] border border-[#27272a] p-3 rounded">
           <div className="text-[11px] text-[#a1a1aa]">חציון רווח צפוי (P50)</div>
-          <div className="text-xl font-mono font-bold text-[#10b981] mt-1">
+          <div className="text-xl font-mono font-bold text-[#06b6d4] mt-1">
             {formatILS(stats.p50)}
           </div>
           <div className="text-[10px] text-[#a1a1aa] mt-0.5 font-mono">
@@ -155,7 +155,7 @@ export default function MonteCarloFanChart({ project }) {
               <span className="text-[#a1a1aa]">טווח הפסד (Profit &lt; 0)</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-[#10b981] opacity-70 rounded-xs"></span>
+              <span className="w-3 h-3 bg-[#06b6d4] opacity-70 rounded-xs"></span>
               <span className="text-[#a1a1aa]">טווח רווח</span>
             </span>
             <span className="flex items-center gap-1.5">
@@ -194,7 +194,7 @@ export default function MonteCarloFanChart({ project }) {
               const barW = Math.max(1, (chartW / bins.length) - 1.5);
               const barH = b.density * chartH;
               const barY = padding.top + chartH - barH;
-              const fillColor = b.isLoss ? '#e11d48' : '#10b981';
+              const fillColor = b.isLoss ? '#e11d48' : '#06b6d4';
 
               return (
                 <g key={i}>
@@ -279,13 +279,13 @@ export default function MonteCarloFanChart({ project }) {
                   y1={padding.top}
                   x2={getX(stats.p50)}
                   y2={padding.top + chartH}
-                  stroke="#10b981"
+                  stroke="#06b6d4"
                   strokeWidth="2"
                 />
                 <text
                   x={getX(stats.p50)}
                   y={padding.top - 8}
-                  fill="#10b981"
+                  fill="#06b6d4"
                   fontSize="10"
                   fontWeight="bold"
                   textAnchor="middle"
@@ -363,7 +363,7 @@ export default function MonteCarloFanChart({ project }) {
         <div className="space-y-1.5">
           <div className="flex justify-between text-xs">
             <span className="text-[#a1a1aa]">תנודתיות מחירי מכירה (Revenue Vol):</span>
-            <span className="font-mono font-bold text-[#10b981]">±{revVol}%</span>
+            <span className="font-mono font-bold text-[#06b6d4]">±{revVol}%</span>
           </div>
           <input
             type="range"
@@ -375,7 +375,7 @@ export default function MonteCarloFanChart({ project }) {
               setRevVol(Number(e.target.value));
               setSelectedPreset('custom');
             }}
-            className="w-full accent-[#10b981] cursor-pointer"
+            className="w-full accent-[#06b6d4] cursor-pointer"
           />
           <div className="text-[10px] text-[#71717a]">
             רגישות למחירי שוק הדיור וקצב סגירת עסקאות

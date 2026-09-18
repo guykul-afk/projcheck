@@ -48,10 +48,10 @@ export default function BuildingInventoryMatrix({ project, onUpdateInventory }) 
       const isDev = (apt.type === 'יזם' || (apt.contractorSharePct ?? 0) > 0);
       if (isDev) {
         return {
-          border: '1px solid #10b98180',
-          bg: '#10b98115',
+          border: '1px solid #06b6d480',
+          bg: '#06b6d415',
           tag: 'יזם',
-          tagColor: '#10b981'
+          tagColor: '#06b6d4'
         };
       }
       return {
@@ -71,8 +71,8 @@ export default function BuildingInventoryMatrix({ project, onUpdateInventory }) 
       const ratio = Math.max(0, Math.min(1, (pSqm - priceSqmStats.min) / range));
       
       // Interpolate from deep slate to vibrant emerald
-      const border = ratio > 0.6 ? '#10b981' : (ratio > 0.3 ? '#38bdf8' : '#64748b');
-      const bg = ratio > 0.6 ? '#10b98125' : (ratio > 0.3 ? '#38bdf820' : '#64748b15');
+      const border = ratio > 0.6 ? '#06b6d4' : (ratio > 0.3 ? '#38bdf8' : '#64748b');
+      const bg = ratio > 0.6 ? '#06b6d425' : (ratio > 0.3 ? '#38bdf820' : '#64748b15');
       return {
         border: `1px solid ${border}`,
         bg,
@@ -170,14 +170,14 @@ export default function BuildingInventoryMatrix({ project, onUpdateInventory }) 
           <div className="text-lg font-mono font-bold text-[#fafafa] mt-1">
             {stats.totalUnits} דירות
           </div>
-          <div className="text-[10px] text-[#10b981] mt-0.5">
+          <div className="text-[10px] text-[#06b6d4] mt-0.5">
             יזם: {stats.devUnits} ({stats.devUnitsPct}%) | בעלים: {stats.ownerUnits}
           </div>
         </div>
 
         <div className="bg-[#09090b] border border-[#27272a] p-3 rounded">
           <div className="text-[11px] text-[#a1a1aa]">שווי מכירות יזם (ללא מע"מ)</div>
-          <div className="text-lg font-mono font-bold text-[#10b981] mt-1">
+          <div className="text-lg font-mono font-bold text-[#06b6d4] mt-1">
             {formatILS(stats.devValueExclVat)}
           </div>
           <div className="text-[10px] text-[#a1a1aa] mt-0.5">
@@ -307,7 +307,7 @@ export default function BuildingInventoryMatrix({ project, onUpdateInventory }) 
                       onClick={() => setEditForm({ ...editForm, type: 'יזם', contractorSharePct: 100 })}
                       className={`py-1.5 rounded font-medium border text-center transition-colors ${
                         editForm.type === 'יזם'
-                          ? 'bg-[#10b98120] border-[#10b981] text-[#10b981]'
+                          ? 'bg-[#06b6d420] border-[#06b6d4] text-[#06b6d4]'
                           : 'bg-[#18181b] border-[#27272a] text-[#a1a1aa]'
                       }`}
                     >
@@ -405,7 +405,7 @@ export default function BuildingInventoryMatrix({ project, onUpdateInventory }) 
                 <button
                   type="button"
                   onClick={handleSaveEdit}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded font-bold text-xs bg-[#10b981] hover:bg-[#059669] text-[#09090b] transition-colors"
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded font-bold text-xs bg-[#06b6d4] hover:bg-[#0891b2] text-[#09090b] transition-colors"
                 >
                   <Check size={14} />
                   שמור שינוי במלאי

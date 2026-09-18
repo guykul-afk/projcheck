@@ -56,8 +56,8 @@ const Login = () => {
         <div style={{
           width: '68px',
           height: '68px',
-          background: 'rgba(16, 185, 129, 0.1)',
-          border: '1px solid rgba(16, 185, 129, 0.3)',
+          background: 'rgba(6, 182, 212, 0.12)',
+          border: '1px solid rgba(6, 182, 212, 0.35)',
           borderRadius: '16px',
           display: 'flex',
           alignItems: 'center',

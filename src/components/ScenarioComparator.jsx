@@ -25,7 +25,7 @@ export default function ScenarioComparator({ projects, activeProjectId, onForkSc
     }
 
     const isGood = isHigherBetter ? delta > 0 : delta < 0;
-    const color = isGood ? 'text-[#10b981]' : 'text-[#e11d48]';
+    const color = isGood ? 'text-[#06b6d4]' : 'text-[#e11d48]';
     const Icon = delta > 0 ? ArrowUpRight : ArrowDownRight;
     const prefix = delta > 0 ? '+' : '';
 
@@ -130,8 +130,8 @@ export default function ScenarioComparator({ projects, activeProjectId, onForkSc
             {/* Row: Profit */}
             <tr className="hover:bg-[#27272a40] transition-colors">
               <td className="p-3 font-heebo text-[#fafafa] font-bold">רווח יזמי נקי (ללא מע"מ)</td>
-              <td className="p-3 text-[#10b981] font-bold">{formatILS(kpisA.profit)}</td>
-              <td className="p-3 text-[#10b981] font-bold">{formatILS(kpisB.profit)}</td>
+              <td className="p-3 text-[#06b6d4] font-bold">{formatILS(kpisA.profit)}</td>
+              <td className="p-3 text-[#06b6d4] font-bold">{formatILS(kpisB.profit)}</td>
               <td className="p-3">{renderDelta(kpisA.profit, kpisB.profit, true)}</td>
             </tr>
 

@@ -71,7 +71,7 @@ export default function CashflowSCurve({ project, onApplyChanges }) {
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#27272a] pb-4">
         <div>
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#10b981] animate-pulse"></span>
+            <span className="w-2.5 h-2.5 rounded-full bg-[#06b6d4] animate-pulse"></span>
             <h3 className="text-lg font-bold tracking-tight text-[#fafafa]">
               סימולטור עקומת תזרים וחשיפת אשראי (S-Curve & Debt Exposure)
             </h3>
@@ -96,7 +96,7 @@ export default function CashflowSCurve({ project, onApplyChanges }) {
                 constructionMonths,
                 financingPercent
               })}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold bg-[#10b981] hover:bg-[#059669] text-[#09090b] transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold bg-[#06b6d4] hover:bg-[#0891b2] text-[#09090b] transition-colors"
             >
               החל שינויים בפרויקט
             </button>
@@ -111,7 +111,7 @@ export default function CashflowSCurve({ project, onApplyChanges }) {
           <div className="text-lg font-mono font-bold text-[#e11d48] mt-1">
             {formatILS(simKPIs.maxExposure)}
           </div>
-          <div className={`text-[10px] font-mono mt-0.5 ${deltaMaxExposure > 0 ? 'text-[#e11d48]' : 'text-[#10b981]'}`}>
+          <div className={`text-[10px] font-mono mt-0.5 ${deltaMaxExposure > 0 ? 'text-[#e11d48]' : 'text-[#06b6d4]'}`}>
             {deltaMaxExposure !== 0 && (deltaMaxExposure > 0 ? `+${formatILS(deltaMaxExposure)} חשיפה` : `${formatILS(deltaMaxExposure)} שיפור`)}
             {deltaMaxExposure === 0 && 'זהה לבסיס'}
           </div>
@@ -122,7 +122,7 @@ export default function CashflowSCurve({ project, onApplyChanges }) {
           <div className="text-lg font-mono font-bold text-[#f59e0b] mt-1">
             {formatILS(simKPIs.financing)}
           </div>
-          <div className={`text-[10px] font-mono mt-0.5 ${deltaFinancing > 0 ? 'text-[#e11d48]' : 'text-[#10b981]'}`}>
+          <div className={`text-[10px] font-mono mt-0.5 ${deltaFinancing > 0 ? 'text-[#e11d48]' : 'text-[#06b6d4]'}`}>
             {deltaFinancing !== 0 && (deltaFinancing > 0 ? `+${formatILS(deltaFinancing)} נטל ריבית` : `${formatILS(deltaFinancing)} חיסכון`)}
             {deltaFinancing === 0 && 'זהה לבסיס'}
           </div>
@@ -130,7 +130,7 @@ export default function CashflowSCurve({ project, onApplyChanges }) {
 
         <div className="bg-[#09090b] border border-[#27272a] p-3 rounded">
           <div className="text-[11px] text-[#a1a1aa]">תשואה פנימית (IRR שנתי)</div>
-          <div className="text-lg font-mono font-bold text-[#10b981] mt-1">
+          <div className="text-lg font-mono font-bold text-[#06b6d4] mt-1">
             {simKPIs.irr != null ? `${simKPIs.irr.toFixed(1)}%` : 'N/A'}
           </div>
           <div className="text-[10px] font-mono text-[#a1a1aa] mt-0.5">
@@ -140,10 +140,10 @@ export default function CashflowSCurve({ project, onApplyChanges }) {
 
         <div className="bg-[#09090b] border border-[#27272a] p-3 rounded">
           <div className="text-[11px] text-[#a1a1aa]">רווח יזמי נקי</div>
-          <div className={`text-lg font-mono font-bold mt-1 ${simKPIs.profit >= 0 ? 'text-[#10b981]' : 'text-[#e11d48]'}`}>
+          <div className={`text-lg font-mono font-bold mt-1 ${simKPIs.profit >= 0 ? 'text-[#06b6d4]' : 'text-[#e11d48]'}`}>
             {formatILS(simKPIs.profit)}
           </div>
-          <div className={`text-[10px] font-mono mt-0.5 ${deltaProfit >= 0 ? 'text-[#10b981]' : 'text-[#e11d48]'}`}>
+          <div className={`text-[10px] font-mono mt-0.5 ${deltaProfit >= 0 ? 'text-[#06b6d4]' : 'text-[#e11d48]'}`}>
             {deltaProfit !== 0 && (deltaProfit > 0 ? `+${formatILS(deltaProfit)}` : `${formatILS(deltaProfit)}`)}
             {deltaProfit === 0 && 'ללא שינוי'}
           </div>
@@ -164,7 +164,7 @@ export default function CashflowSCurve({ project, onApplyChanges }) {
               <span className="text-[#a1a1aa]">הוצאות מצטברות</span>
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="w-3 h-0.5 bg-[#10b981]"></span>
+              <span className="w-3 h-0.5 bg-[#06b6d4]"></span>
               <span className="text-[#a1a1aa]">תקבולים מצטברים</span>
             </span>
           </div>
@@ -247,7 +247,7 @@ export default function CashflowSCurve({ project, onApplyChanges }) {
             {/* Area & Lines */}
             <path d={exposureAreaPath} fill="url(#exposureGradient)" />
             <path d={costLinePath} fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="4 2" />
-            <path d={revLinePath} fill="none" stroke="#10b981" strokeWidth="2" />
+            <path d={revLinePath} fill="none" stroke="#06b6d4" strokeWidth="2" />
             <path
               d={simKPIs.equityExposure.map((val, i) => `${i === 0 ? 'M' : 'L'} ${getX(i)},${getY(val)}`).join(' ')}
               fill="none"
@@ -350,7 +350,7 @@ export default function CashflowSCurve({ project, onApplyChanges }) {
               <span>הוצאה מצטברת:</span>
               <span>{formatILS(simKPIs.cumCosts[hoveredMonthIndex])}</span>
             </div>
-            <div className="flex justify-between gap-4 text-[#10b981]">
+            <div className="flex justify-between gap-4 text-[#06b6d4]">
               <span>תקבול מצטבר:</span>
               <span>{formatILS(simKPIs.cumRevs[hoveredMonthIndex])}</span>
             </div>
@@ -390,10 +390,10 @@ export default function CashflowSCurve({ project, onApplyChanges }) {
         <div className="space-y-1.5">
           <div className="flex justify-between text-xs">
             <span className="text-[#a1a1aa] flex items-center gap-1.5">
-              <DollarSign size={13} className="text-[#10b981]" />
+              <DollarSign size={13} className="text-[#06b6d4]" />
               חלק מכירות במבצע 20/80 (דחיית תשלום למסירה):
             </span>
-            <span className="font-mono font-bold text-[#10b981]">
+            <span className="font-mono font-bold text-[#06b6d4]">
               {p2080Percent}%
             </span>
           </div>
@@ -404,7 +404,7 @@ export default function CashflowSCurve({ project, onApplyChanges }) {
             step="5"
             value={p2080Percent}
             onChange={(e) => setP2080Percent(Number(e.target.value))}
-            className="w-full accent-[#10b981] cursor-pointer"
+            className="w-full accent-[#06b6d4] cursor-pointer"
           />
           <div className="flex justify-between text-[10px] text-[#71717a]">
             <span>0% (תשלומים שוטפים)</span>

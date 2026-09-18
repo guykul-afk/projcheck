@@ -307,7 +307,7 @@ export function calculateIRR(cashflows) {
 
 export function getProjectRisk(profitPct, annualRoe, irr) {
   if (profitPct > 25 && annualRoe > 15 && (irr == null || irr > 20)) {
-    return { level: 'green', color: '#10b981', bg: '#064e3b20', label: 'בריא', icon: '🟢' };
+    return { level: 'green', color: '#06b6d4', bg: 'rgba(6, 182, 212, 0.15)', label: 'בריא', icon: '🔵' };
   }
   if (profitPct > 15 && annualRoe > 10 && (irr == null || irr > 12)) {
     return { level: 'yellow', color: '#f59e0b', bg: '#78350f20', label: 'גבולי', icon: '🟡' };
